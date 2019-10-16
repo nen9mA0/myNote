@@ -1,0 +1,9 @@
+===test separator===
+separate by space
+separate	by	tab
+
+===test specific separator===
+separate#by#   ;
+
+===test split===
+a===b===c===

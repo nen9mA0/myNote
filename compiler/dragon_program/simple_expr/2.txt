@@ -1,0 +1,13 @@
+expr.t = expr.t || term.t || '+'
+expr.t = expr.t || term.t || '-'
+expr.t = term.t
+term.t = 0
+term.t = 1
+term.t = 2
+term.t = 3
+term.t = 4
+term.t = 5
+term.t = 6
+term.t = 7
+term.t = 8
+term.t = 9
