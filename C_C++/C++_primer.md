@@ -618,12 +618,17 @@ out1 = out2;
 * s.fail()  failbit是否置位
 * s.bad()  badbit是否置位
 * s.good()  流是否处于有效状态
-* s.clear()  将
-* s.clear(flag)
-* s.setstate(flag)
-* s.rdstate()
+* s.clear()  将流设置成有效状态
+* s.clear(flag)  复位流状态某个bit
+* s.setstate(flag)  置位流状态某个bit
+* s.rdstate()   返回当前状态值
 
+##### 状态值
 
+* badbit   strm::badbit置位，系统级故障
+* failbit   strm::failbit置位，可恢复错误，如cin对象为int时输入了字符
+* eof    strm::eofbit置位，文件结尾
+* good
 
-
+除非good为true，否则检查流本身会返回false状态
 
