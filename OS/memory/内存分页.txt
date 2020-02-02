@@ -1,0 +1,5 @@
+https://blog.csdn.net/cc_net/article/details/12878935	x86 16位CPU内存管理
+https://blog.csdn.net/cc_net/article/details/13979967	x86 32位CPU内存管理之分页管理
+https://blog.csdn.net/cc_net/article/details/24726287	x86 32位CPU内存管理之分段管理
+https://blog.csdn.net/helloworld10086/article/details/43603565	一级和二级页表
+https://blog.csdn.net/qq_22238021/article/details/80176099	很好的解释多级页表和页表优化

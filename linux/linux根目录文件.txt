@@ -1,0 +1,128 @@
+/bin	系統有很多放置執行檔的目錄，但/bin比較特殊。因為/bin放置的是在單人維護模式下還能夠被操作的指令。
+	在/bin底下的指令可以被root與一般帳號所使用，主要有：cat, chmod, chown, date, mv, mkdir, cp, bash等等常用的指令。
+
+/boot	這個目錄主要在放置開機會使用到的檔案，包括Linux核心檔案以及開機選單與開機所需設定檔等等。
+	Linux kernel常用的檔名為：vmlinuz，如果使用的是grub2這個開機管理程式， 則還會存在/boot/grub2/這個目錄喔！
+
+/dev	在Linux系統上，任何裝置與周邊設備都是以檔案的型態存在於這個目錄當中的。
+	你只要透過存取這個目錄底下的某個檔案，就等於存取某個裝置囉～ 
+	比要重要的檔案有/dev/null, /dev/zero, /dev/tty, /dev/loop*, /dev/sd*等等
+
+/etc	系統主要的設定檔幾乎都放置在這個目錄內，例如人員的帳號密碼檔、 各種服務的啟始檔等等。
+	一般來說，這個目錄下的各檔案屬性是可以讓一般使用者查閱的， 但是只有root有權力修改。
+	FHS建議不要放置可執行檔(binary)在這個目錄中喔。
+	比較重要的檔案有： /etc/modprobe.d/, /etc/passwd, /etc/fstab, /etc/issue 等等。
+	另外 FHS 還規範幾個重要的目錄最好要存在 /etc/ 目錄下喔：
+		/etc/opt(必要)：這個目錄在放置第三方協力軟體 /opt 的相關設定檔
+		/etc/X11/(建議)：與 X Window 有關的各種設定檔都在這裡，尤其是 xorg.conf 這個 X Server 的設定檔。
+		/etc/sgml/(建議)：與 SGML 格式有關的各項設定檔
+		/etc/xml/(建議)：與 XML 格式有關的各項設定檔
+
+/lib	系統的函式庫非常的多，而/lib放置的則是在開機時會用到的函式庫， 以及在/bin或/sbin底下的指令會呼叫的函式庫而已。
+	什麼是函式庫呢？妳可以將他想成是『外掛』，某些指令必須要有這些『外掛』才能夠順利完成程式的執行之意。 
+	另外 FHS 還要求底下的目錄必須要存在：
+		/lib/modules/：這個目錄主要放置可抽換式的核心相關模組(驅動程式)喔！
+
+/media	media是『媒體』的英文，顧名思義，這個/media底下放置的就是可移除的裝置啦！ 包括軟碟、光碟、DVD等等裝置都暫時掛載於此。
+	常見的檔名有：/media/floppy, /media/cdrom等等。
+
+/mnt	如果妳想要暫時掛載某些額外的裝置，一般建議妳可以放置到這個目錄中。 
+	在古早時候，這個目錄的用途與/media相同啦！只是有了/media之後，這個目錄就用來暫時掛載用了。
+
+/opt	這個是給第三方協力軟體放置的目錄。
+	什麼是第三方協力軟體啊？ 舉例來說，KDE這個桌面管理系統是一個獨立的計畫，不過他可以安裝到Linux系統中，因此KDE的軟體就建議放置到此目錄下了。
+	另外，如果妳想要自行安裝額外的軟體(非原本的distribution提供的)，那麼也能夠將你的軟體安裝到這裡來。 
+	不過，以前的Linux系統中，我們還是習慣放置在/usr/local目錄下呢！
+
+/run	早期的 FHS 規定系統開機後所產生的各項資訊應該要放置到 /var/run 目錄下，
+	新版的 FHS 則規範到 /run 底下。 由於 /run 可以使用記憶體來模擬，因此效能上會好很多！
+
+/sbin	Linux有非常多指令是用來設定系統環境的，這些指令只有root才能夠利用來『設定』系統，其他使用者最多只能用來『查詢』而已。
+	放在/sbin底下的為開機過程中所需要的，裡面包括了開機、修復、還原系統所需要的指令。
+	至於某些伺服器軟體程式，一般則放置到/usr/sbin/當中。
+	至於本機自行安裝的軟體所產生的系統執行檔(system binary)， 則放置到/usr/local/sbin/當中了。常見的指令包括：fdisk, fsck, ifconfig, mkfs等等。
+
+/srv	srv可以視為『service』的縮寫，是一些網路服務啟動之後，這些服務所需要取用的資料目錄。
+	常見的服務例如WWW, FTP等等。舉例來說，WWW伺服器需要的網頁資料就可以放置在/srv/www/裡面。
+	不過，系統的服務資料如果尚未要提供給網際網路任何人瀏覽的話，預設還是建議放置到 /var/lib 底下即可。
+
+/tmp	這是讓一般使用者或者是正在執行的程序暫時放置檔案的地方。 這個目錄是任何人都能夠存取的，所以你需要定期的清理一下。當然，重要資料不可放置在此目錄啊！
+	因為FHS甚至建議在開機時，應該要將/tmp下的資料都刪除唷！
+
+/home	這是系統預設的使用者家目錄(home directory)。在你新增一個一般使用者帳號時， 預設的使用者家目錄都會規範到這裡來。比較重要的是，家目錄有兩種代號喔：
+		~：代表目前這個使用者的家目錄
+		~dmtsai ：則代表 dmtsai 的家目錄！
+
+/lib	用來存放與 /lib 不同的格式的二進位函式庫，例如支援 64 位元的 /lib64 函式庫等
+
+/root	系統管理員(root)的家目錄。之所以放在這裡，是因為如果進入單人維護模式而僅掛載根目錄時， 該目錄就能夠擁有root的家目錄，
+	所以我們會希望root的家目錄與根目錄放置在同一個分割槽中。
+
+/lost+	這個目錄是使用標準的ext2/ext3/ext4檔案系統格式才會產生的一個目錄，目的在於當檔案系統發生錯誤時， 將一些遺失的片段放置到這個目錄下
+found	不過如果使用的是 xfs 檔案系統的話，就不會存在這個目錄了！
+
+/proc	這個目錄本身是一個『虛擬檔案系統(virtual filesystem)』喔！他放置的資料都是在記憶體當中， 例如系統核心、行程資訊(process)、周邊裝置的狀態及網路狀態等等。
+	因為這個目錄下的資料都是在記憶體當中， 所以本身不佔任何硬碟空間啊！
+	比較重要的檔案例如：
+		/proc/cpuinfo
+		/proc/dma
+		/proc/interrupts
+		/proc/ioports
+		/proc/net/*
+
+/sys	這個目錄其實跟/proc非常類似，也是一個虛擬的檔案系統，主要也是記錄核心與系統硬體資訊較相關的資訊。
+	包括目前已載入的核心模組與核心偵測到的硬體裝置資訊等等。這個目錄同樣不佔硬碟容量喔！
+
+/usr	Unix Software Resource的縮寫，/usr裡面放置的資料屬於可分享的與不可變動的(shareable, static)，
+	如果你知道如何透過網路進行分割槽的掛載(例如在伺服器篇會談到的NFS伺服器)，那麼/usr確實可以分享給區域網路內的其他主機來使用喔！
+		/usr/bin	所有一般用戶能夠使用的指令都放在這裡！
+				目前新的 CentOS 7 已經將全部的使用者指令放置於此，而使用連結檔的方式將 /bin 連結至此！
+				也就是說， /usr/bin 與 /bin 是一模一樣了！另外，FHS 要求在此目錄下不應該有子目錄！
+
+		/usr/lib	基本上，與 /lib 功能相同，所以 /lib就是連結到此目錄中的！
+
+		/usr/local	系統管理員在本機自行安裝自己下載的軟體(非distribution預設提供者)，建議安裝到此目錄， 這樣會比較便於管理。
+				舉例來說，你的distribution提供的軟體較舊，你想安裝較新的軟體但又不想移除舊版，
+				此時你可以將新版軟體安裝於/usr/local/目錄下，可與原先的舊版軟體有分別啦！
+				你可以自行到/usr/local去看看，該目錄下也是具有bin, etc, include, lib...的次目錄喔！
+
+		/usr/sbin	非系統正常運作所需要的系統指令。最常見的就是某些網路伺服器軟體的服務指令(daemon)囉！
+				不過基本功能與 /sbin 也差不多， 因此目前 /sbin 就是連結到此目錄中的。
+
+		/usr/share	主要放置唯讀架構的資料檔案，當然也包括共享文件。在這個目錄下放置的資料幾乎是不分硬體架構均可讀取的資料， 因為幾乎都是文字檔案嘛！
+				在此目錄下常見的還有這些次目錄：
+					/usr/share/man：線上說明文件
+					/usr/share/doc：軟體雜項的文件說明
+					/usr/share/zoneinfo：與時區有關的時區檔案
+
+/var	/var目錄主要針對常態性變動的檔案，包括快取(cache)、登錄檔(log file)以及某些軟體運作所產生的檔案，
+	包括程序檔案(lock file, run file)，或者例如MySQL資料庫的檔案等等。
+		/var/cache	應用程式本身運作過程中會產生的一些暫存檔
+
+		/var/lib	程式本身執行的過程中，需要使用到的資料檔案放置的目錄。在此目錄下各自的軟體應該要有各自的目錄。
+				舉例來說，MySQL的資料庫放置到/var/lib/mysql/而rpm的資料庫則放到/var/lib/rpm去！
+		
+		/var/lock	某些裝置或者是檔案資源一次只能被一個應用程式所使用，
+				如果同時有兩個程式使用該裝置時， 就可能產生一些錯誤的狀況，因此就得要將該裝置上鎖(lock)，以確保該裝置只會給單一軟體所使用。 
+				舉例來說，燒錄機正在燒錄一塊光碟，你想一下，會不會有兩個人同時在使用一個燒錄機燒片？ 如果兩個人同時燒錄，那片子寫入的是誰的資料？
+				所以當第一個人在燒錄時該燒錄機就會被上鎖， 第二個人就得要該裝置被解除鎖定(就是前一個人用完了)才能夠繼續使用囉。
+				目前此目錄也已經挪到 /run/lock 中！
+
+		/var/log	重要到不行！這是登錄檔放置的目錄！裡面比較重要的檔案如/var/log/messages, /var/log/wtmp(記錄登入者的資訊)等。
+
+		/var/mail	放置個人電子郵件信箱的目錄，不過這個目錄也被放置到/var/spool/mail/目錄中！ 通常這兩個目錄是互為連結檔啦！
+
+		/var/run	某些程式或者是服務啟動後，會將他們的PID放置在這個目錄下喔！至於PID的意義我們會在後續章節提到的。 與 /run 相同，這個目錄連結到 /run 去了！
+
+		/var/spool	這個目錄通常放置一些佇列資料，所謂的『佇列』就是排隊等待其他程式使用的資料啦！ 這些資料被使用後通常都會被刪除。
+				舉例來說，系統收到新信會放置到/var/spool/mail/中， 但使用者收下該信件後該封信原則上就會被刪除。
+				信件如果暫時寄不出去會被放到/var/spool/mqueue/中， 等到被送出後就被刪除。如果是工作排程資料(crontab)，就會被放置到/var/spool/cron/目錄中！
+
+
+CentOS 7 连结	
+		/bin --> /usr/bin
+		/sbin --> /usr/sbin
+		/lib --> /usr/lib
+		/lib64 --> /usr/lib64
+		/var/lock --> /run/lock
+		/var/run --> /run
