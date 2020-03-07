@@ -122,6 +122,8 @@ stream multiprocessor
 
 ## 软件结构到物理结构映射
 
+![](pic\gpu_basic_17.png)
+
 * grid -> 显卡
 * block -> SM
 * thread -> SP
@@ -157,3 +159,5 @@ https://zhuanlan.zhihu.com/p/53763285
 http://haifux.org/lectures/267/Introduction-to-GPUs.pdf  推荐
 
 https://www.cnblogs.com/dirge/p/7795193.html  编程相关
+
+https://www.cnblogs.com/1024incn/p/4541313.html  墙裂推荐

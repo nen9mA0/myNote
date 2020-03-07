@@ -327,7 +327,7 @@ client        <--->     server
 m1||m2||m3...        s1||s2||s3...
 
 [m1||m2||m3...] ^ PRG(k)
-			[s1||s2||s3...]^PRG(k)
+			[s1||s2||s3...] ^ PRG(k)
 ```
 
 加密方法为 客户端[m1||m2||m3...] ^ PRG(k)， 服务端[s1||s2||s3...]^PRG(k)。这里使用的种子k是相同的，因此导致了TTP问题
@@ -460,6 +460,8 @@ Adv_{SS}[A,E] &= \  \big| \ P[W_0] - P[W_1] \ \big|
 &= \ \big| \ P[W_1] - P[R_0] + P[R_0] - P[W_0] \ \big|
 \\
 & \leq \ \big| P[W_1] - P[R_0] \big| + \big| P[R_0] - P[W_0] \big|
+\\
+&=  \ \big| P[W_1] - P[R_1] \big| + \big| P[R_0] - P[W_0] \big|
 \\
 &= 2 * Adv_{PRG}[B,G]
 \end{aligned}
@@ -945,7 +947,7 @@ AES每轮有三个函数，分别为
 
 #### 目标
 
-由于**分组密码可以由feistel网络+PRP（伪随机置换）组成**，因此实际目标是PRG -> PRF -> PRP
+由于**分组密码可以由feistel网络+PRP（伪随机置换）组成**，因此设计目标是PRG -> PRF -> PRP
 
 #### PRG -> PRF
 
@@ -1478,6 +1480,11 @@ output &= H_n
 \end{aligned}
 $$
 
+##### pad
+
+pad为100...，且最后64位用于指定一共有多少个分组被计算了hash。若长度为整数倍则加入dummy block
+
+##### 安全性
 
 ### 攻击
 
