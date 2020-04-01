@@ -57,7 +57,7 @@ glGetIntegerv( GPU_MEMORY_INFO_CURRENT_AVAILABLE_VIDMEM_NVX );
 ##### CUDA
 
 ```c
-cudaMenGetInfo();
+cudaMemGetInfo();
 ```
 
 ##### OpenCL and OpenGL for AMD
