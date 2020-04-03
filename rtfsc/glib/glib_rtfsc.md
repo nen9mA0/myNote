@@ -151,6 +151,174 @@ static gchar *g_build_path_va (const gchar  *separator, const gchar  *first_elem
 
 ## 字符串
 
+### gstring
+
+#### 数据结构
+
+```c
+typedef struct _GString GString;
+struct _GString
+{
+  gchar  *str;
+  gsize len;
+  gsize allocated_len;
+};
+```
+
+#### 重要函数
+
+注意这里g_string_maybe_expand调用nearest_power时用string->len+len+1调用，即至少为1。而g_string_sized_new调用g_string_maybe_expand的最小参数是2，且调用g_string_new时若init不为空，则将以strlen(init)+2为参数调用g_string_sized_new。但若是用g_string_new_len则g_string_sized_new的参数是len
+
+```c
+static inline gsize nearest_power (gsize base, gsize num);
+//以base为初始值，每次左移2位查找大于num的最小值
+
+static void g_string_maybe_expand (GString *string, gsize len);
+//增加GString的空间。测试string->len + len是否大于string->allocated_len，若大于则realloc nearest_power(1, string->len + len +1)的空间
+
+GString *g_string_sized_new (gsize dfl_size);
+//初始化GString，并分配MAX(dfl_size,2)空间给字符串。使用g_slice_new GString，并用g_string_maybe_expand分配dfl_size字节给GString结构的str成员
+
+GString *g_string_new (const gchar *init);
+//用init建立并初始化一个GString类型。若init为NULL或\0则g_string_sized_new(2)，否则g_string_sized_new(strlen(init) + 2)并将init复制过去
+
+GString *g_string_new_len (const gchar *init, gssize len);
+//分配len大小的GString并以init初始化
+
+gchar *g_string_free (GString  *string, gboolean free_segment);
+//释放GString空间。若free_segment为True则同时释放Gstring->str，否则将字符串返回
+
+GBytes *g_string_free_to_bytes (GString *string);
+//将GString转换为GBytes类型返回，并释放GString
+
+gboolean g_string_equal (const GString *v, const GString *v2);
+//比较字符串（无优化
+
+guint g_string_hash (const GString *str);
+//字符串哈希，计算公式 h = (h << 5) - h + *p h初始化为0，p每次迭代都为下一个字符
+
+GString *g_string_assign (GString *string, const gchar *rval);
+//将string改写为rval
+
+GString *g_string_truncate (GString *string, gsize len);
+//若string->len大于len，则在len处截断字符串（没有进行realloc）
+
+GString *g_string_set_size (GString *string, gsize len);
+//设置长度，若len大于string->allocated_len则重新以len分配空间
+
+GString *g_string_insert_len (GString *string, gssize pos, const gchar *val, gssize len);
+//将长度为len的val插入string的pos处。这里处理了val为string子串的情况。具体做法为，先计算并分配空间，然后将(string->str+pos)处的(string->len-pos)个字节移到(string->str+pos+len)处，再将val memcpy到(string->str+pos)处。对于为子串的情况看代码吧
+
+GString *g_string_insert_c (GString *string, gssize pos, gchar c);
+//在string的pos处插入一个字符c
+
+GString *g_string_insert_unichar (GString *string, gssize pos, gunichar wc);
+//将unicode编码为utf8并存到pos处
+
+static gboolean is_valid (char c, const char *reserved_chars_allowed);
+//判断字符c是否在可用字符列表中，可用字符包含字母数字 - ~ . _ 和reserved_chars_allowed中的字符
+
+GString *g_string_append_uri_escaped (GString *string, const gchar *unescaped, const gchar *reserved_chars_allowed, gboolean allow_utf8);
+//URI转义，若allow_utf8为true则支持utf8
+
+static inline GString *g_string_append_c_inline (GString *gstring, gchar c);
+//若string->len+1 < string->allocated_len，则直接在末尾添加c，否则调用g_string_insert_c
+
+GString *g_string_append (GString *string, const gchar *val);
+//以pos=-1和len=-1调用g_string_insert_len，直接在string尾部插入strlen(val)
+
+GString *g_string_append_len (GString *string, const gchar *val, gssize len);
+//同上，但len参数不为-1
+
+GString *g_string_append_c (GString *string, gchar c);
+//append一个字符，即以pos=-1调用g_string_insert_c
+
+GString *g_string_append_unichar (GString *string, gunichar wc);
+//以pos=-1调用g_string_insert_unichar
+
+GString *g_string_prepend (GString *string, const gchar *val);
+//以pos=0调用g_string_insert_len
+
+GString *g_string_prepend_len (GString *string, const gchar *val, gssize len);
+//以pos=0和len调用g_string_insert_len
+
+GString *g_string_prepend_c (GString *string, gchar c);
+//以pos=0调用g_string_insert_c
+
+GString *g_string_prepend_unichar (GString *string, gunichar wc);
+//以pos=0调用g_string_insert_unichar
+
+GString *g_string_overwrite_len (GString *string, gsize pos, const gchar *val, gssize len);
+//用val覆盖pos处的len个字符
+
+GString *g_string_erase (GString *string, gssize pos, gssize len);
+//擦除pos处len个字节，若pos+len<string->len则将后面字节移动到pos
+
+GString *g_string_ascii_down (GString *string);
+//全部转小写
+GString *g_string_ascii_up (GString *string);
+//全部转大写
+
+void g_string_append_vprintf (GString *string, const gchar *format, va_list args);
+//在string后append一个由格式化字符串控制的字符串
+
+void g_string_vprintf (GString *string, const gchar *format, va_list args);
+//替换string为一个格式化字符串控制的字符串
+```
+
+#### 潜在bug与没弄懂的操作
+
+##### nearest_power
+
+注意这里重新实现了一个nearest_power，但只要base不为0应该不会出错
+
+```c
+static inline gsize
+nearest_power (gsize base, gsize num)
+{
+  if (num > MY_MAXSIZE / 2)
+    {
+      return MY_MAXSIZE;
+    }
+  else
+    {
+      gsize n = base;
+      while (n < num)
+        n <<= 1;
+      return n;
+    }
+}
+```
+
+##### g_string_insert_len
+
+这里判断val是否为string->str子串时使用了一个C标准内未定义的方法，但至少在目前所有架构中都适用
+
+即通过`val >= string->str && val <= string->str+string->len`判断，相当于直接用地址判断
+
+##### g_string_append_unichar
+
+为什么要往一个gchar数组插utf8字符啊。。。
+
+### gbytes
+
+#### 数据结构
+
+```c
+struct _GBytes
+{
+  gconstpointer data;  /* may be NULL iff (size == 0) */
+  gsize size;  /* may be 0 */
+  gatomicrefcount ref_count;
+  GDestroyNotify free_func;
+  gpointer user_data;
+};
+```
+
+
+
+
+
 ### gstrfuncs
 
 #### 潜在bug
@@ -190,7 +358,149 @@ g_ascii_strcasecmp (const gchar *s1,
 
 ### gmem
 
+#### 数据结构
 
+```c
+struct _GMemVTable {
+  gpointer (*malloc)      (gsize    n_bytes);
+  gpointer (*realloc)     (gpointer mem,
+			   gsize    n_bytes);
+  void     (*free)        (gpointer mem);
+  /* optional; set to NULL if not used ! */
+  gpointer (*calloc)      (gsize    n_blocks,
+			   gsize    n_block_bytes);
+  gpointer (*try_malloc)  (gsize    n_bytes);
+  gpointer (*try_realloc) (gpointer mem,
+			   gsize    n_bytes);
+};
+```
+
+标准内存分配函数的vtable，在gmem.c被定义如下
+
+```c
+static GMemVTable glib_mem_vtable = {
+  malloc,
+  realloc,
+  free,
+  calloc,
+  malloc,
+  realloc,
+};
+```
+
+#### 宏
+
+```c
+#define g_clear_pointer(pp, destroy)  
+//用于将pp赋值为NULL，调用destroy函数析构，并返回pp之前指向的内容
+
+#define g_new(struct_type, n_structs)			_G_NEW (struct_type, n_structs, malloc)
+#define g_new0(struct_type, n_structs)			_G_NEW (struct_type, n_structs, malloc0)
+#define g_try_new(struct_type, n_structs)		_G_NEW (struct_type, n_structs, try_malloc)
+#define g_try_new0(struct_type, n_structs)		_G_NEW (struct_type, n_structs, try_malloc0)
+//上面的四个宏依赖于下面的_G_NEW，分别是使用malloc malloc0 try_malloc try_malloc0进行内存分配和初始化
+#define _G_NEW(struct_type, n_structs, func)
+//调用func分配n_struct个struct_type
+
+#define g_renew(struct_type, mem, n_structs)		_G_RENEW (struct_type, mem, n_structs, realloc)
+#define g_try_renew(struct_type, mem, n_structs)	_G_RENEW (struct_type, mem, n_structs, try_realloc)
+#define _G_RENEW(struct_type, mem, n_structs, func)
+//调用func重新分配mem处的n_struct个struct_type元素（即realloc）
+```
+
+#### 重要函数
+
+```c
+static inline gpointer g_steal_pointer (gpointer pp);
+//指针移动，将pp置为NULL，返回之前pp指向的内容
+
+void g_clear_pointer (gpointer *pp, GDestroyNotify destroy);
+//将pp置零并调用destroy析构
+
+gpointer g_malloc (gsize n_bytes);
+gpointer g_malloc0 (gsize n_bytes);
+gpointer g_realloc (gpointer mem, gsize n_bytes);
+void g_free (gpointer mem);
+gpointer g_try_malloc (gsize n_bytes);
+gpointer g_try_malloc0 (gsize n_bytes);
+gpointer g_try_realloc (gpointer mem, gsize n_bytes);
+gpointer g_malloc_n (gsize n_blocks, gsize n_block_bytes);
+gpointer g_malloc0_n (gsize n_blocks, gsize n_block_bytes);
+gpointer g_realloc_n (gpointer mem, gsize n_blocks, gsize n_block_bytes);
+gpointer g_try_malloc_n (gsize n_blocks, gsize n_block_bytes);
+gpointer g_try_malloc0_n (gsize n_blocks, gsize n_block_bytes);
+gpointer g_try_realloc_n (gpointer mem, gsize n_blocks, gsize n_block_bytes);
+```
+
+带0的使用calloc分配，带try的加了对NULL指针的判断
+
+#### 有趣的片段
+
+##### g_clear_pointer
+
+```c
+#if defined(g_has_typeof) && GLIB_VERSION_MAX_ALLOWED >= GLIB_VERSION_2_58
+#define g_clear_pointer(pp, destroy)                                           \
+  G_STMT_START {                                                               \
+    G_STATIC_ASSERT (sizeof *(pp) == sizeof (gpointer));                       \
+    __typeof__((pp)) _pp = (pp);                                               \
+    __typeof__(*(pp)) _ptr = *_pp;                                             \
+    *_pp = NULL;                                                               \
+    if (_ptr)                                                                  \
+      (destroy) (_ptr);                                                        \
+  } G_STMT_END                                                                 \
+  GLIB_AVAILABLE_MACRO_IN_2_34
+#else /* __GNUC__ */
+#define g_clear_pointer(pp, destroy) \
+  G_STMT_START {                                                               \
+    G_STATIC_ASSERT (sizeof *(pp) == sizeof (gpointer));                       \
+    /* Only one access, please; work around type aliasing */                   \
+    union { char *in; gpointer *out; } _pp;                                    \
+    gpointer _p;                                                               \
+    /* This assignment is needed to avoid a gcc warning */                     \
+    GDestroyNotify _destroy = (GDestroyNotify) (destroy);                      \
+                                                                               \
+    _pp.in = (char *) (pp);                                                    \
+    _p = *_pp.out;                                                             \
+    if (_p) 								       \
+      { 								       \
+        *_pp.out = NULL;                                                       \
+        _destroy (_p);                                                         \
+      }                                                                        \
+  } G_STMT_END                                                                 \
+  GLIB_AVAILABLE_MACRO_IN_2_34
+```
+
+上半部分比较好懂，下半部分为了兼容类型转换而使用了union进行类型转换
+
+##### _G_NEW
+
+```c
+#  define _G_NEW(struct_type, n_structs, func) \
+	(struct_type *) (G_GNUC_EXTENSION ({			\
+	  gsize __n = (gsize) (n_structs);			\
+	  gsize __s = sizeof (struct_type);			\
+	  gpointer __p;						\
+	  if (__s == 1)						\
+	    __p = g_##func (__n);				\
+	  else if (__builtin_constant_p (__n) &&		\
+	           (__s == 0 || __n <= G_MAXSIZE / __s))	\
+	    __p = g_##func (__n * __s);				\
+	  else							\
+	    __p = g_##func##_n (__n, __s);			\
+	  __p;							\
+	}))
+```
+
+在内存分配上进行了一些优化
+
+若new的个数`n_structs`为1，则调用`g_##func`（若func为malloc则调用的是`g_malloc`）
+
+若new的个数为常数且`n_struct * sizeof(struct_type)`小于等于`G_MAXSIZE`，则也调用`g_##func`
+
+若new的个数不为常数，则调用`g_##func_n`
+
+因为这里大多数case被预处理了，因此能优化
 
 ### gslice
 
@@ -198,32 +508,61 @@ g_ascii_strcasecmp (const gchar *s1,
 
 #### 重要的参数和宏
 
+##### 关于对齐
+
 ```c
-#define LARGEALIGNMENT          (256)
+//2*sizeof(size_t)
 #define P2ALIGNMENT             (2 * sizeof (gsize))                            /* fits 2 pointers (assumed to be 2 * GLIB_SIZEOF_SIZE_T below) */
+
 // 用于将size按照base内存对齐
 #define ALIGN(size, base)       ((base) * (gsize) (((size) + (base) - 1) / (base)))
-#define NATIVE_MALLOC_PADDING   P2ALIGNMENT                                     /* per-page padding left for native malloc(3) see [1] */
-#define SLAB_INFO_SIZE          P2ALIGN (sizeof (SlabInfo) + NATIVE_MALLOC_PADDING)
-#define MAX_MAGAZINE_SIZE       (256)                                           /* see [3] and allocator_get_magazine_threshold() for this */
-#define MIN_MAGAZINE_SIZE       (4)
-#define MAX_STAMP_COUNTER       (7)                                             /* distributes the load of gettimeofday() */
-#define MAX_SLAB_CHUNK_SIZE(al) (((al)->max_page_size - SLAB_INFO_SIZE) / 8)    /* we want at last 8 chunks per page, see [4] */
-#define MAX_SLAB_INDEX(al)      (SLAB_INDEX (al, MAX_SLAB_CHUNK_SIZE (al)) + 1)
-#define SLAB_INDEX(al, asize)   ((asize) / P2ALIGNMENT - 1)                     /* asize must be P2ALIGNMENT aligned */
-#define SLAB_CHUNK_SIZE(al, ix) (((ix) + 1) * P2ALIGNMENT)
-#define SLAB_BPAGE_SIZE(al,csz) (8 * (csz) + SLAB_INFO_SIZE)
 
 /* optimized version of ALIGN (size, P2ALIGNMENT) */
-#if     GLIB_SIZEOF_SIZE_T * 2 == 8  /* P2ALIGNMENT */
+#if     GLIB_SIZEOF_SIZE_T * 2 == 8  /* P2ALIGNMENT */	//若sizeof(size_t) == 4，按8字节对齐
 // size + 0x7 & 0xfffffff8
 #define P2ALIGN(size)   (((size) + 0x7) & ~(gsize) 0x7)
-#elif   GLIB_SIZEOF_SIZE_T * 2 == 16 /* P2ALIGNMENT */
+#elif   GLIB_SIZEOF_SIZE_T * 2 == 16 /* P2ALIGNMENT */	//若sizeof(size_t) == 8，按16字节对齐
 #define P2ALIGN(size)   (((size) + 0xf) & ~(gsize) 0xf)
 #else
 // 按 2*sizeof(gsize) 对齐 size
-#define P2ALIGN(size)   ALIGN (size, P2ALIGNMENT)
+#define P2ALIGN(size)   ALIGN (size, P2ALIGNMENT)		//其他请况下按 2*sizeof(size_t)对齐（好像其实都是按这个对齐的）
 #endif
+```
+
+##### magazine chain
+
+```c
+#define magazine_chain_prev(mc)         ((mc)->data)
+#define magazine_chain_stamp(mc)        ((mc)->next->data)
+#define magazine_chain_uint_stamp(mc)   GPOINTER_TO_UINT ((mc)->next->data)
+#define magazine_chain_next(mc)         ((mc)->next->next->data)
+#define magazine_chain_count(mc)        ((mc)->next->next->next->data)
+```
+
+
+
+##### 其他
+
+```c
+#define LARGEALIGNMENT          (256)
+#define NATIVE_MALLOC_PADDING   P2ALIGNMENT
+
+//sizeof(SlabInfo+2*sizeof(size_t))
+#define SLAB_INFO_SIZE          P2ALIGN (sizeof (SlabInfo) + NATIVE_MALLOC_PADDING)
+#define MAX_MAGAZINE_SIZE       (256)
+#define MIN_MAGAZINE_SIZE       (4)
+#define MAX_STAMP_COUNTER       (7)                                             /* distributes the load of gettimeofday() */
+
+//最大slab chunk大小，一个页面至少需要有8个chunk
+#define MAX_SLAB_CHUNK_SIZE(al) (((al)->max_page_size - SLAB_INFO_SIZE) / 8)    /* we want at last 8 chunks per page, see [4] */
+#define SLAB_INDEX(al, asize)   ((asize) / P2ALIGNMENT - 1)                     /* asize must be P2ALIGNMENT aligned */
+
+//最大slab的下标
+#define MAX_SLAB_INDEX(al)      (SLAB_INDEX (al, MAX_SLAB_CHUNK_SIZE (al)) + 1)
+
+#define SLAB_CHUNK_SIZE(al, ix) (((ix) + 1) * P2ALIGNMENT)
+#define SLAB_BPAGE_SIZE(al,csz) (8 * (csz) + SLAB_INFO_SIZE)
+
 ```
 
 #### 数据结构
@@ -258,6 +597,7 @@ typedef struct {
   Magazine   *magazine1;                /* array of MAX_SLAB_INDEX (allocator) */
   Magazine   *magazine2;                /* array of MAX_SLAB_INDEX (allocator) */
 } ThreadMemory;
+//用于存储当前线程上的内存信息
 
 typedef struct {
   /* const after initialization */
@@ -287,8 +627,57 @@ typedef struct {
 
 #### 重要函数
 
+##### 初始化
+
 ```c
+static void slice_config_init (SliceConfig *config);
+//定义分配器的属性，默认属性见上面SliceConfig的解释。若环境变量包含G_SLICE则可以改变属性，否则忽略（除非运行了valgrind）
+
+static void g_slice_init_nomessage (void);
+//初始化allocator，主要有以下几点
+//若HAVE_POSIX_MEMALIGN或HAVE_MEMALIGN定义
+// max_page_size = min_page_size = sysconf(_SC_PAGESIZE)
+//否则
+// max_page_size = 8192  min_page_size = 128
+//若always_malloc为真，则不分配contention_counters magazines slab_stack，否则分配
+//初始化时间戳和用于优化的max_slab_chunk_size_for_magazine_cache
+
+
+static inline guint allocator_categorize (gsize aligned_chunk_size);
+//根据aligned_chunk_size大小确定分配的类型
+// 0. malloc
+// 1. 使用slab cache
+//    当aligned_chunk_size <= allocator->max_slab_chunk_size_for_magazine_cache
+//    或aligned_chunk_size <= MAX_SLAB_CHUNK_SIZE (allocator)
+// 2. 使用magazine cache
+//    只要定义了allocator->config.bypass_magazines
+
+static inline void g_mutex_lock_a (GMutex *mutex, guint *contention_counter);
+
 static inline ThreadMemory* thread_memory_from_self (void);
+//在tls获取当前线程的Allocator结构体，若能获取到则直接返回，否则检查allocator是否初始化，若无调用g_slice_init_nomessage初始化。此后分配ThreadMemory和2个Magazine的空间（sizeof(Magazine)*n_magazines），并修改指针（见内存布局
+
+
+gpointer g_slice_alloc (gsize mem_size);
+```
+
+##### magazine
+
+```c
+static inline ChunkLink *magazine_chain_pop_head (ChunkLink **magazine_chunks);
+//
+```
+
+
+
+#### 内存布局
+
+##### thread_memory_from_self
+
+```
+|  ThreadMemory |  Magazine1 | Magazine2 |
+    .magazine1  -----|            |
+    .magazine2  ------------------|
 ```
 
 
@@ -450,6 +839,45 @@ void
 
 为什么g_atomic_pointer_add使用的参数和返回值是gssize(signed size_t)而and/or/xor是gsize(unsigned size_t)，get/set是gpointer
 
+### grefcount
+
+#### 类型
+
+```c
+typedef gint grefcount;
+typedef volatile gint   gatomicrefcount;
+```
+
+#### 重要函数
+
+```c
+void g_ref_count_init(grefcount *rc);
+// 初始化rc为-1
+
+void g_ref_count_inc(grefcount *rc);
+// rc减一，release
+
+void g_ref_count_dec(grefcount *rc);
+// rc加一，acquire
+
+gboolean g_ref_count_compare(grefcount *rc, gint val);
+// rc与-val比较
+
+void g_atomic_ref_count_init(gatomicrefcount *arc);
+// arc赋1
+
+void g_atomic_ref_count_inc(gatomicrefcount *arc);
+// g_atomic_int_inc  acquire
+
+gboolean g_atomic_ref_count_dec(gatomicrefcount *arc);
+// g_atomic_int_dec_and_test  release 即 --(*arc) == 0
+
+gboolean g_atomic_ref_count_compare(gatomicrefcount *arc, gint val);
+// g_atomic_int_get(arc) == val
+```
+
+
+
 ## 数据结构
 
 ### garray
@@ -600,8 +1028,16 @@ CLAMP 将x限制在low~high间
 
 G_APPROX_VALUE 判断浮点数是否相等
 
+## 一些知识
 
+### 语法相关
 
-### ref
+```c
+__builtin_constant_p(x)
+```
+
+gcc宏，若x在编译时为常数则返回true，否则为false
+
+## ref
 
 https://www.cnblogs.com/FateTHarlaown/p/8919235.html  原子操作
