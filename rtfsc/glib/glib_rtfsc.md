@@ -553,8 +553,10 @@ gpointer g_try_realloc_n (gpointer mem, gsize n_blocks, gsize n_block_bytes);
 #define MIN_MAGAZINE_SIZE       (4)
 #define MAX_STAMP_COUNTER       (7)                                             /* distributes the load of gettimeofday() */
 
-//最大slab chunk大小，一个页面至少需要有8个chunk
+//slab chunk大小，每个page有8个块（paper上有提到）
 #define MAX_SLAB_CHUNK_SIZE(al) (((al)->max_page_size - SLAB_INFO_SIZE) / 8)    /* we want at last 8 chunks per page, see [4] */
+
+//
 #define SLAB_INDEX(al, asize)   ((asize) / P2ALIGNMENT - 1)                     /* asize must be P2ALIGNMENT aligned */
 
 //最大slab的下标
