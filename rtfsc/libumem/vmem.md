@@ -1,4 +1,4 @@
-## 概述
+### 概述
 
 vmem属于后端
 
@@ -90,7 +90,13 @@ typedef struct vmem_kstat {
 } vmem_kstat_t;
 ```
 
+### 标志
 
+#### arena创建标志
+
+##### VMC_POPULATOR
+
+表示该arena在创建时作为populator创建（）
 
 ### 全局变量
 
@@ -118,7 +124,8 @@ static vmem_t *vmem_list;
 static vmem_seg_t *vmem_segfree;
 ```
 
-保存释放后的vmem_seg_t
+* 保存释放后的vmem_seg_t
+* 初始化时，vmem_seg0的100个元素被加入vmem_segfree（见vmem_init函数）
 
 ##### vmem_seg0
 
@@ -127,6 +134,7 @@ static vmem_seg_t vmem_seg0[VMEM_SEG_INITIAL];
 ```
 
 * VMEM_SEG_INITIAL= 100
+* 初始化时被加入vmem_segfree
 
 ##### vmem_populator
 
@@ -134,11 +142,37 @@ static vmem_seg_t vmem_seg0[VMEM_SEG_INITIAL];
 static vmem_t *vmem_populator[VMEM_INITIAL];
 ```
 
+存放创建标志为VMC_POPULATOR的段
+
 * VMEM_INITIAL = 6
 
 ##### vmem_populators
 
+populator arena的数量
 
+##### arena全局变量
+
+在vmem_init中被初始化
+
+###### vmem_heap
+
+存放heap段，参数`VM_SLEEP | VMC_POPULATOR`
+
+###### vmem_internal_arena
+
+存放"vmem_internal"段，参数`VM_SLEEP | VMC_POPULATOR`
+
+###### vmem_seg_arena
+
+存放"vmem_seg"段，参数`VM_SLEEP | VMC_POPULATOR`
+
+###### vmem_hash_arena
+
+存放"vmem_hash"段，参数`VM_SLEEP | VMC_POPULATOR`
+
+###### vmem_vmem_arena
+
+存放"vmem_vmem"段，参数`VM_SLEEP | VMC_POPULATOR`
 
 ### 全局锁
 
@@ -183,12 +217,12 @@ vmem_t *vmem_init(const char *parent_name, size_t parent_quantum,
 ###### 描述
 
 * 将100个（VMEM_SEG_INITIAL）vmem_seg0数组元素加入vmem_segfree列表
-* 若parent_name不为NULL，创建以参数parent_name为名的vmem_t
-* 创建以参数heap_name为名的vmem_t，赋给vmem_heap
-* 创建"vmem_internal"为名的vmem_t，赋给vmem_internal_arena
-* 创建"vmem_seg"为名的vmem_t，赋给vmem_seg_arena
-* 创建"vmem_hash"为名的vmem_t，赋给vmem_hash_arena
-* 创建"vmem_vmem"为名的vmem_t，赋给vmem_vmem_arena
+* 若parent_name不为NULL，创建以参数parent_name为名的vmem_t，参数`VM_SLEEP | VMC_POPULATOR`
+* 创建以参数heap_name为名的vmem_t，赋给vmem_heap，参数`VM_SLEEP | VMC_POPULATOR`
+* 创建"vmem_internal"为名的vmem_t，赋给vmem_internal_arena，参数`VM_SLEEP | VMC_POPULATOR`
+* 创建"vmem_seg"为名的vmem_t，赋给vmem_seg_arena，参数`VM_SLEEP | VMC_POPULATOR`
+* 创建"vmem_hash"为名的vmem_t，赋给vmem_hash_arena，参数`VM_SLEEP`
+* 创建"vmem_vmem"为名的vmem_t，赋给vmem_vmem_arena，参数`VMSLEEP`
 * 
 
 ##### vmem_create
@@ -203,7 +237,7 @@ vmem_t *vmem_create(const char *name, void *base, size_t size, size_t quantum,
 
 ###### 描述
 
-* 若vmem_vmem_arena被分配，则分配一个vmem_t
+* 若vmem_vmem_arena已分配，则调用vmem_alloc分配一个vmem_t
 
 * 否则直接从vmem0结构体取
 
@@ -276,6 +310,9 @@ struct vmem {
 
 	vmem_freelist_t	vm_freelist[VMEM_FREELISTS + 1]; //空闲块列表
     				//数组的每个元素与前后的元素串接成一个双向链表，头尾为NULL
+    				//vm_freelist按照vm_seg_t定义的地址范围大小来存放vm_seg_t链表，即
+    				//vm_freelist存放元素字节数大小分别对应
+    				// 0~1 2~3 4~7 8~15 16~31 32~63 64~127 128~255 ...
     /*
     	vm_freelist
     	|___vmem_freelist_t___|  <------\
@@ -325,7 +362,7 @@ void vmem_destroy(vmem_t *vmp);
 
 
 
-#### vmem_seg_t操作
+#### getseg/putseg
 
 ##### vmem_getseg_global
 
@@ -371,6 +408,101 @@ push一个vmem_seg_t到vmem_t的vm_segfree
 static void vmem_putseg(vmem_t *vmp, vmem_seg_t *vsp);
 ```
 
+#### hash表
+
+##### VMEM_HASH_INDEX
+
+哈希函数
+
+```c
+#define	VMEM_HASH_INDEX(a, s, q, m)					\
+	((((a) + ((a) >> (s)) + ((a) >> ((s) << 1))) >> (q)) & (m))
+```
+
+##### VMEM_HASH
+
+计算哈希并且返回对应hash table的下标
+
+```c
+#define	VMEM_HASH(vmp, addr)						\
+	(&(vmp)->vm_hash_table[VMEM_HASH_INDEX(addr,			\
+	(vmp)->vm_hash_shift, (vmp)->vm_qshift, (vmp)->vm_hash_mask)])
+```
+
+##### vmem_hash_insert
+
+```c
+static void vmem_hash_insert(vmem_t *vmp, vmem_seg_t *vsp);
+```
+
+###### 描述
+
+* 根据`vsp->vs_start`计算哈希，获取对应`vmem_t->vm_hash_table`地址
+* 将vsp加入链表中
+* 更新`vmem_t->vm_kstat.vk_alloc`和`vmem_t->vm_kstat.vk_mem_inuse`
+
+##### vmem_hash_delete
+
+```c
+static vmem_seg_t *vmem_hash_delete(vmem_t *vmp, uintptr_t addr, size_t size);
+```
+
+###### 描述
+
+* 根据addr计算哈希表地址
+* 若addr与哈希表中记录的`vmem_seg_t->vs_start`不同
+  * 则遍历链表直到找到
+  * 且每次查找都递增`vmem_t->vm_kstat.vk_lookup`
+* 检查有没有找到对应链表项和对应size是否相等
+* 更新`vmem_t->vm_kstat.vk_free`和`vmem_t->vm_kstat.vk_mem_inuse`
+
+#### freelist
+
+##### vmem_freelist_insert
+
+```c
+static void vmem_freelist_insert(vmem_t *vmp, vmem_seg_t *vsp);
+```
+
+往vmem_t的vm_freelist元素插入一个vmem_seg_t
+
+###### 描述
+
+* 检查vsp的哈希，确定其没有被存放过
+
+* 将其存入对应的vmem_t的vm_freelist链表，具体来说，存放到vm_freelist下标为
+
+  `highbit(vsp->end - vsp->start)-1`的元素中
+
+* 更新vm_freemap参数
+
+##### vmem_freelist_delete
+
+```c
+static void vmem_freelist_delete(vmem_t *vmp, vmem_seg_t *vsp);
+```
+
+从vmem_t的vm_freelist元素删除一个vmem_seg_t
+
+###### 描述
+
+* 若vsp的前面和后面都是freelist头（判据start=0），则将对应freemap置0
+* 将其从链表中删除
+
+#### span
+
+##### vmem_span_create
+
+```c
+static vmem_seg_t *vmem_span_create(vmem_t *vmp, void *vaddr, size_t size, uint8_t import);
+```
+
+###### 描述
+
+
+
+#### seg初始化
+
 ##### vmem_populate
 
 若vmem_t的vm_segfree内元素个数小于VMEM_MINFREE，则填充新的空vmem_seg_t元素
@@ -379,7 +511,7 @@ static void vmem_putseg(vmem_t *vmp, vmem_seg_t *vsp);
 static int vmem_populate(vmem_t *vmp, int vmflag);
 ```
 
-
+**注意**：vmem_populate进入前后`vmp->vm_lock`都是锁着的
 
 
 
@@ -389,9 +521,23 @@ static int vmem_populate(vmem_t *vmp, int vmflag);
 static vmem_seg_t *vmem_seg_create(vmem_t *vmp, vmem_seg_t *vprev, uintptr_t start, uintptr_t end);
 ```
 
+在vmem_t的vm_segfree取一个元素（vmem_getseg）并进行初始化
+
+###### 描述
+
+* vs_start = start
+* vs_end = end
+* vs_type = 0
+* vs_import = 0
+* 链表项插入vprev之后
+
+##### vmem_seg_destroy
+
+```c
+static void vmem_seg_destroy(vmem_t *vmp, vmem_seg_t *vsp);
+```
+
+从vsp所在链表中删除该项，并放回vm_segfree（vmem_putseg）
 
 
-
-
-#### hash表
 
