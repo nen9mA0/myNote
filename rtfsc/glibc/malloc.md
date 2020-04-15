@@ -1,3 +1,48 @@
+### 一些参数
+
+#####  DEFAULT_MMAP_THRESHOLD_MIN
+
+```c
+#ifndef DEFAULT_MMAP_THRESHOLD_MIN
+#define DEFAULT_MMAP_THRESHOLD_MIN (128 * 1024)
+#endif 
+```
+
+##### DEFAULT_MMAP_THRESHOLD_MAX
+
+```c
+#if __WORDSIZE == 32
+#define DEFAULT_MMAP_THRESHOLD_MAX (512 * 1024)
+#else
+#define DEFAULT_MMAP_THRESHOLD_MAX (4 * 1024 * 1024 * sizeof(long))
+#endif
+```
+
+##### DEFAULT_MMAP_THRESHOLD
+
+```c
+#ifndef DEFAULT_MMAP_THRESHOLD
+#define DEFAULT_MMAP_THRESHOLD DEFAULT_MMAP_THRESHOLD_MIN
+#endif
+```
+
+##### HEAP_MIN_SIZE
+
+创建heap时最小的heap大小
+
+```c
+#define HEAP_MIN_SIZE (32 * 1024)
+```
+
+##### HEAP_MAX_SIZE
+
+创建heap时最大的heap大小
+
+```c
+#define HEAP_MAX_SIZE (2 * DEFAULT_MMAP_THRESHOLD_MAX)
+```
+
+
 ### arena
 
 #### 数据类型
@@ -143,6 +188,16 @@ static void ptmalloc_init(void);
 
 * 将main_arena赋值给thread_arena
 * 调用malloc_init_state初始化main_arena
+
+##### new_heap
+
+```c
+static heap_info *internal_function new_heap(size_t size, size_t top_pad);
+```
+
+###### 描述
+
+
 
 ### malloc
 
