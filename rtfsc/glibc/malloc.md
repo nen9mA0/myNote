@@ -421,9 +421,28 @@ MINSIZE是对齐后的最小chunk size
   ((in_smallbin_range (sz)) ? smallbin_index (sz) : largebin_index (sz))
 ```
 
+##### arena
+
+######  arena_get
+
 
 
 #### 主要函数
+
+##### __libc_malloc
+
+顶层函数
+
+```c
+void *__libc_malloc(size_t bytes);
+```
+
+* 使用arena_get试图从当前arena中获取元素
+* 使用_int_malloc分配内存
+* 若获取失败
+  * arena_get_retry试图重新获取arena
+  * _int_malloc
+* 解锁arena，返回
 
 ##### unlink
 

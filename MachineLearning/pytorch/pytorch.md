@@ -1196,3 +1196,577 @@ $$
 $$
 U(- \sqrt{\frac{6}{a+b}}, \sqrt{\frac{6}{a+b}})
 $$
+
+## pytorch建模
+
+### 模型构造
+
+#### Module
+
+Module是所有神经网络模块的基类
+
+```python
+import pytorch
+from torch import nn
+
+class MLP(nn.Module):
+    # 声明带有模型参数的层，这里声明了两个全连接层
+    def __init__(self, **kwargs):
+        # 调用MLP父类Module的构造函数来进行必要的初始化。这样在构造实例时还可以指定其他函数
+        super(MLP, self).__init__(**kwargs)
+        self.hidden = nn.Linear(784, 256) # 隐藏层
+        self.act = nn.ReLU()
+        self.output = nn.Linear(256, 10)  # 输出层
+
+
+    # 定义模型的前向计算，即如何根据输入x计算返回所需要的模型输出
+    def forward(self, x):
+        a = self.act(self.hidden(x))
+        return self.output(a)
+```
+
+反向传播会自动计算，不需要重定义
+
+```python
+net = MLP()
+net(X)
+```
+
+调用MLP计算X的网络输出，net会调用MLP类的`__call__`，`__call__`调用MLP类的forward函数进行计算
+
+#### Sequential类
+
+是Module的子类，可以使用OrderedDict传入各个Module构建模型，这里使用OrderedDict是因为正向传播和反向传播时需要保持顺序
+
+```python
+net = Sequential(
+	OrderedDict([
+        ("hidden", nn.Linear(num_inputs, num_hidden)),
+        ("ReLU", nn.ReLU()),
+        ("output", nn.Linear(num_hidden, num_outputs))
+    ])
+)
+```
+
+或者可以直接用Module初始化（这几个运算的基类都是Module）
+
+```python
+net = Sequential(
+		nn.Linear(num_inputs, num_hidden)),
+		nn.ReLU(),
+    	nn.Linear(num_hidden, num_outputs),
+)
+```
+
+#### ModuleList类
+
+也是Module的子类，提供类似list的操作，但是与Sequential不同，它不定义顺序，因此需要自己实现forward
+
+```python
+class MyModule(nn.Module):
+	def __init__(self):
+        super(Mymodule, self).__init__()
+        self.linears = nn.ModuleList([nn.Linear(num_inputs, num_hidden), nn.ReLU()])
+        self.linears.append(nn.Linear(num_hidden, num_outputs))
+        
+    def forward(self, x):
+    	h = self.linears[0](x)
+        h = self.linears[1](h)	#ReLU
+        o = self.linears[2](h)
+        return o
+```
+
+#### ModuleDict类
+
+```python
+net = ModuleDict({
+    'linear': nn.Linear(num_inputs, num_hidden),
+    'act': nn.ReLU(),
+})
+net['output'] = nn.Linear(num_hidden, num_outputs)
+```
+
+### 参数访问、初始化和共享
+
+#### 参数访问
+
+使用上面方法构造的模型一般提供默认的参数初始化，但有些情况下我们希望用一些特定方式初始化
+
+```python
+for name, param in net.named_parameters():
+    print(name, param)
+```
+
+所有的参数类型都是`torch.nn.parameter.Parameter`，这是Tensor的子类，若一个Tensor类型是Parameter，它会被直接加入模型列表，即若按上节的方法构造模型，在`__init__`中定义了一个`nn.Parameter`则遍历模型parameters时会返回这个参数
+
+#### 参数初始化
+
+##### 使用init
+
+均值为0，标准差为0.01初始化weight参数
+
+```python
+for name, param in net.named_parameters():
+    if 'weight' in name:
+        init.normal_(param, mean=0, std=0.01)
+        print(name, param.data)
+```
+
+常数0初始化weight参数
+
+```python
+for name, param in net.named_parameters():
+    if 'weight' in name:
+        init.constant(param, val=0)
+        print(name, param.data)
+```
+
+##### 自定义初始化
+
+```python
+def init_weight(param):
+    with param.no_grad():		#重要，不记录梯度
+        param = 1				#全部置1
+```
+
+还可以使用`param.data`改变参数值且不影响梯度
+
+#### 参数共享
+
+在定义模型时，使用相同的实例初始化模型可以让两个层的参数共享
+
+```python
+linear = nn.Linear(num_inputs, num_outputs)
+net = Sequential(linear, linear)
+```
+
+两个层参数共享，**且反向传播时梯度*2**
+
+### 自定义层
+
+自定义层与构造网络的其他层有相同地位，可以用于构造自己定义的运算层，并使用Sequential等加入模型
+
+直接看原文吧 http://tangshusen.me/Dive-into-DL-PyTorch/#/chapter04_DL_computation/4.4_custom-layer
+
+### 读取和存储
+
+#### tensor
+
+```python
+x = tensor.ones(3)
+torch.save(x, "filename")
+
+x = torch.load("filename")
+```
+
+#### 参数
+
+对于存在**可学习**的参数的Module，可以使用state_dict获取其参数列表。此外，优化器optim也有state_dict选项
+
+```python
+model = ModuleClass()
+...
+torch.save(model.state_dict(), "filename")
+
+
+model = ModuleClass()
+model.load_state_dict(torch.load("filename"))
+```
+
+#### 模型
+
+```python
+torch.save(model, "filename")
+
+model = torch.load("filename")
+```
+
+### GPU
+
+#### GPU信息
+
+```python
+torch.cuda.is_available()	#是否可用
+torch.cuda.device_count()	#数量
+torch.cuda.current_device()	#当前设备
+torch.cuda.get_device_name(index)	#根据index获取设备名
+```
+
+#### GPU计算
+
+三种办法将tensor放到GPU上，同时net也要转换到GPU上才能进行运算
+
+```python
+device = torch.device('cuda')
+
+x = torch.tensor([], device=device)
+x = torch.tensor([]).to(device)
+x = x.cuda()
+
+net = nn.Linear(1,1)
+net.cuda()
+```
+
+## 卷积神经网络
+
+### 二维卷积层
+
+![](pic/5.1_correlation.svg)
+
+**注意这里的卷积运算实际上不是卷积而是个互相关运算，因为卷积运算的卷积核是翻转的，即上面若是卷积运算，卷积核应该为 [[3,2],[1,0]]，为何是翻转参考信号中的卷积**
+
+但这里卷积运算被定义为互相关或是卷积并不影响结果，因为卷积核的参数都是学习出来的
+
+#### 自定义层实现
+
+```python
+def corr2d(X, K):
+    h, w = K.shape
+    Y = torch.zeros( (X.shape[0]-h+1, X.shape[1]-w+1) )
+    for i in range(h):
+        for j in range(w):
+            Y[i, j] = (X[i:i+h, j:j+w] * K).sum()
+    return Y
+
+class Conv2D(nn.Module):
+    def __init__(self, kernel_size):
+        super(Conv2D, self).__init__()
+        self.weight = torch.Parameter(torch.randn(kernel_size))
+        self.bias = torch.Parameter(torch.randn(1))
+        
+    def forward(self, x):
+        return corr2d(x, self.weight) + self.bias
+```
+
+#### 特征图和感受野
+
+特征图即一个图像通过卷积层后的输出，如上图中输出的四个元素是输入的特征图
+
+感受野表示了影响一个输出元素x的所有输入范围，如上图的输出蓝色部分（1个数）的感受野为输入的蓝色部分（4个数）
+
+### 填充和步幅
+
+#### 卷积输入输出尺寸
+
+假设输入$n_h,n_w$，卷积核$k_h, k_w$，则输出尺寸为$(n_h - k_h + 1), (n_w - k_w +1)$
+
+#### 填充
+
+填充可以改变输出大小，假设填充为$p_h, p_w$，输出尺寸为$(n_h + p_h - k_h + 1), (n_w  + p_w - k_w +1)$。一般来说应尽量保持输入尺寸和输出尺寸的一致，因此一般$k_h,k_w$选用奇数，并使$p_h = (k_h - 1)/2$
+
+#### 步幅
+
+上节定义的卷积运算每次移动一个单位，可以使用步幅改变每次移动的单位，当然输出尺寸也会变
+
+### 多输入通道和多输出通道
+
+#### 多输入通道
+
+若输入有多个通道（如RGB图像），可以使用多个卷积核对不同通道进行处理，最后相加得到结果（这个结果为单通道的输出）
+
+即假设有$c_i$个输入通道，则构建$c_i$个$n_h,n_w$的卷积核，可以表示为一个$c_i*n_h*n_w$的矩阵。此时使用第m个$n_h*n_w$卷积核与第m通道卷积，得到的全部结果相加就是单通道的卷积结果
+
+![](pic/5.3_conv_multi_in.svg)
+
+#### 多输出通道
+
+假设输入通道数和输出通道数为$c_i,c_o$，则可以这样构造
+
+每个输出通道都创建一个$c_i*n_h*n_w$的卷积核，因为由上面可以得，这样一个卷积核对$c_i$个输入卷积可以得到单通道输出，因此构造$c_o$个卷积核以实现输出这些通道
+
+#### 1*1卷积层
+
+卷积核大小为`1*1`的多通道核，实际效果与全连接层相同
+
+![](pic/5.3_conv_1x1.svg)
+
+如上图，有3个输入通道，每个卷积核为`1*1`，输出通道有2个，因此一共有`3*2`个`1*1`卷积核，且有
+$$
+O_1[i, j] = I_1[i,j]*C[1,1] + I_2[i,j]*C[2,1] + I_3[i,j]*C[3,1]
+\\
+O_2[i, j] = I_1[i,j]*C[1,2] + I_2[i,j]*C[2,2] + I_3[i,j]*C[3,2]
+$$
+因为是`1*1`卷积核，所以卷积运算等于相乘，因此运算结果与全连接层的线性运算相同
+
+### 池化层
+
+目的是为了缓解卷积层对位置的过度敏感性
+
+池化层的操作方式类似卷积，不同之处在于卷积对输入与卷积核对应的元素求互相关函数，而池化只是简单的求池化窗口内元素的**最大值、均值**或其他能表征数据整体的数值
+
+![](pic/5.4_pooling.svg)
+
+池化与卷积一样可以通过控制填充和步幅调整输出大小
+
+对于多通道的池化，一般来说池化层对每个通道都分别处理，输入通道数与输出通道数相同
+
+#### 卷积神经网络 LeNet
+
+卷积神经网络通过卷积层代替全连接层，可以有效地减少参数个数并有效处理一些一维向量数据无法解决的相邻关系（如一个`10*10`的图片变为一维向量是`1*100`，但下标为10和20的元素实际上是相邻的）
+
+LeNet模型
+
+![](pic/5.5_lenet.png)
+
+由两个卷积-池化层和三个全连接网络组成
+
+```python
+class LeNet(nn.Module):
+    def __init__(self):
+        super(LeNet, self).__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(1, 6, 5), # in_channels, out_channels, kernel_size
+            nn.Sigmoid(),
+            nn.MaxPool2d(2, 2), # kernel_size, stride
+            nn.Conv2d(6, 16, 5),
+            nn.Sigmoid(),
+            nn.MaxPool2d(2, 2)
+        )
+        self.fc = nn.Sequential(
+            nn.Linear(16*4*4, 120),
+            nn.Sigmoid(),
+            nn.Linear(120, 84),
+            nn.Sigmoid(),
+            nn.Linear(84, 10)
+        )
+
+    def forward(self, img):
+        feature = self.conv(img)
+        output = self.fc(feature.view(img.shape[0], -1))
+        return output
+```
+
+## 优化算法
+### 优化与深度学习
+对于求一个函数的优化值，大多数情况下容易得到的是函数的局部最优解或者和鞍点
+
+#### 海森矩阵
+首先看函数的泰勒展开形式
+##### 一元函数
+
+$$
+f(x) = f(x^{(0)}) + f'(x^{(0)}) \Delta x + \frac{1}{2} f''(x^{(0)}) (\Delta x)^2 + ...
+$$
+
+##### 二元函数
+令$X = ( x_1, x_2 )$
+$$
+\begin{aligned}
+f(x_1, x_2) &= 
+ f(x_1^{(0)}, x_2^{(0)}) + (\frac{∂f}{∂x_1} \bigg|_{X^{(0)}} \Delta x_1 + \frac{∂f}{∂x_2} \bigg|_{X^{(0)}} \Delta x_2) + \frac{1}{2} \frac{∂}{∂X} (\frac{∂f}{∂x_1} \bigg|_{X^{(0)}} \Delta x_1 + \frac{∂f}{∂x_2} \bigg|_{X^{(0)}} \Delta x_2) + ...
+\\
+&= f(x_1^{(0)}, x_2^{(0)}) + (\frac{∂f}{∂x_1} \bigg|_{X^{(0)}} \Delta x_1 + \frac{∂f}{∂x_2} \bigg|_{X^{(0)}} \Delta x_2) + \frac{1}{2} \bigg[ \frac{∂}{∂x_1}(\frac{∂f}{∂x_1}\Delta x_1) \Delta x_1 + \frac{∂}{∂x_2}(\frac{∂f}{∂x_1}\Delta x_1) \Delta x_2 + \frac{∂}{∂x_1}(\frac{∂f}{∂x_2}\Delta x_2) \Delta x_1 + \frac{∂}{∂x_2}(\frac{∂f}{∂x_2}\Delta x_2) \Delta x_2\bigg] + ...
+\\
+&= f(x_1^{(0)}, x_2^{(0)}) + \frac{∂f}{∂x_1} \bigg|_{X^{(0)}} \Delta x_1 + \frac{∂f}{∂x_2} \bigg|_{X^{(0)}} \Delta x_2 + \frac{1}{2} \bigg[ \frac{∂^2f}{∂x_1^2} \bigg|_{X^{(0)}} (\Delta x_1)^2 + 2 \frac{∂f^2}{∂x_1 ∂x_2} \bigg|_{X^{(0)}} \Delta x_1 \Delta x_2 + \frac{∂^2f}{∂x_2^2} \bigg|_{X^{(0)}} (\Delta x_2)^2 \bigg] + ...
+\end{aligned}
+$$
+
+写成矩阵形式
+$$
+\begin{aligned}
+f(X) &= f(X^{(0)}) + \begin{pmatrix} \frac{∂f}{∂x_1} & \frac{∂f}{∂x_2} \end{pmatrix}_{X^{(0)}} \begin{pmatrix} \Delta x_1 \\ \Delta x_2 \end{pmatrix} + 
+\frac{1}{2} 
+\begin{pmatrix}
+\Delta x_1 & \Delta x_2
+\end{pmatrix}
+\begin{pmatrix} \frac{∂^2f}{∂x_1^2} & \frac{∂^2f}{∂x_1∂x_2} \\
+\frac{∂^2f}{∂x_2∂x_1} & \frac{∂^2f}{∂x_2^2}
+\end{pmatrix}_{X^{(0)}}
+\begin{pmatrix} \Delta x_1 \\ \Delta x_2 \end{pmatrix} + ...
+
+\\
+
+&= f(X^{(0)}) + \nabla f(X^{(0)})^T \Delta X + \frac{1}{2} \Delta X^T G(X^{(0)}) \Delta X + ...
+\end{aligned}
+$$
+
+其中G为函数的海森矩阵
+* 当函数的海森矩阵在梯度为零的位置上的特征值全为正时，该函数得到局部最小值
+* 当函数的海森矩阵在梯度为零的位置上的特征值全为负时，该函数得到局部最大值
+* 当函数的海森矩阵在梯度为零的位置上的特征值有正有负时，该函数得到鞍点
+
+对于一个高斯随机矩阵，每个值为正或负的概率都是0.5，因此大概率得到的结果是有正有负的，即鞍点
+
+### 梯度下降 (gradient descent)
+#### 一维梯度下降
+由泰勒级数可得
+$$
+f(x+ϵ) \approx f(x) + ϵf'(x)
+$$
+
+若带入-ηf'(x)，该项足够小以使得$f'(x - ηf'(x)) \approx f'(x)$，得
+$$
+f(x - ηf'(x)) \approx f(x) - ηf'(x)^2
+$$
+
+因此当$f'(x) \neq 0$时f(x)可以一直迭代下降
+
+#### 多维梯度下降
+输入为d维向量$\vec x = [x_1, x_2, ... , x_d]^T$， 则全微分为
+$$
+\nabla_x f(\vec x) = \bigg[ \frac{∂f(\vec x)}{∂x_1}, \frac{∂f(\vec x)}{∂x_2}, ... , \frac{∂f(\vec x)}{∂x_d} \bigg]^T
+$$
+
+则$-\nabla f(\vec x)$方向即为f降低最快的方向，所以
+$$
+\begin{aligned}
+\vec x &= \vec x - \nabla f(\vec x)
+\\
+&= \bigg[ x_1 - \frac{∂f(\vec x)}{∂x_1}, x_2 - \frac{∂f(\vec x)}{∂x_2}, ... , x_d - \frac{∂f(\vec x)}{∂x_d} \bigg]
+\end{aligned}
+$$
+
+#### 随机梯度下降 (SGD)
+stochastic gradient descent
+
+假设$f_i(x)$为对第i个样本进行训练时的损失函数，则总的损失函数为
+$$
+f(x) = \frac{1}{n} \sum_{i=0}^n f_i(x)
+$$
+
+因此梯度下降过程应对每个样本计算梯度
+$$
+\nabla f(x) = \frac{1}{n} \sum_{i=0}^n \nabla f_i(x)
+$$
+
+这里可以看出，随着样本量n的增加，梯度计算量也增加。因此引入随机梯度下降，即每次迭代都随机选取样本集中的一个样本$x_i$，只使用其梯度进行迭代
+$$
+x = x - \nabla ηf_i(x) 
+$$
+
+#### 小批量随机梯度下降
+随机梯度下降取1个样本，梯度下降取全部样本，小批量随机梯度下降取多个样本作为一次迭代的梯度取值
+
+采用随机梯度下降的时候需要注意，因为随机抽样时各个采样值导致的方差是不变的，因此随着迭代次数的增加应该减小η，从而使结果的方差也减小。一般做法是
+$$
+η_t = η_0 * a^t
+$$
+
+因此迭代时的公式为
+$$
+\begin{aligned}
+g_t &= \nabla f_{B_i}(x_{t-1}) = \frac{1}{|B|} \sum_{i \in B_i} \nabla f_i(x_{t-1})
+
+\\
+x_t &= x_{t-1} - η_t g_t
+\end{aligned}
+$$
+
+### 动量法
+为了解决梯度下降法一些弊端，具体见，简单来说是因为若$x_1,x_2,...$的梯度有较大差别时可能造成自变量在梯度较大的维度上的发散 http://tangshusen.me/Dive-into-DL-PyTorch/#/chapter07_optimization/7.4_momentum
+
+引入一个动量超参数γ，有$0 \leq γ < 1$，并在每次递归中加入一个新的项
+
+$$
+\begin{aligned}
+v_t &= γv_{t-1} + η_t g_t
+\\
+x_t &= x_{t-1} - v_t 
+\end{aligned}
+$$
+
+#### 指数加权移动平均
+
+$$
+\begin{aligned}
+y_t &= (1 - γ) x_t + γy_{t-1}
+\\
+&= (1 - γ) x_t + (1-γ)γx_{t-1} + γ^2 y_{t-2}
+\\
+&= (1 - γ) x_t + (1-γ)γx_{t-1} + (1-γ)γ^2 x_{t-2} + γ^3 y_{t-3}
+\\
+& ...
+\\
+&可以写为：
+\\
+&= (1 - γ) \sum_{i=0}^t γ^{t-i} x_i + γ^{t+1} y_0
+
+\end{aligned}
+$$
+由于
+
+$$
+令 n = \frac{1}{1-γ}，则(1 - \frac{1}{n})^n = γ^{\frac{1}{1-γ}}
+\\
+lim_{n \rightarrow \infin} (1 - \frac{1}{n})^n = e^{-1}
+$$
+因此当γ趋于1，最后一项可以被视为e^-1，若能将其忽略，则yt则为对时间的加权平均，而从权值可以看出，离t越近的x对y的影响越大
+
+现在来看动量法的形式
+$$
+v_t = (1-γ)(\frac{η_t g_t}{1-γ}) + γ v_{t-1}
+$$
+与上面描述的指数加权移动平均形式一样
+
+这使得历史的x对于现在的y也存在影响
+
+### AdaGrad
+这种方法根据自变量在不同维度上的梯度自适应学习率，避免统一的学习率难以适应不同维度
+
+$$
+\boldsymbol s_t = \boldsymbol{s_{t-1}} + \boldsymbol{g_t} ⊙ \boldsymbol{g_t}
+\\
+x_t = x_{t-1} - \frac{η}{\sqrt{s_t + \epsilon}} ⊙ \boldsymbol{g_t} 
+$$
+可以看到，对于梯度值大的维度学习率会相应降低
+
+但AdaGrad也有个明显缺点，就是其学习率是单调递减的，因此若在迭代开始时未能找到较优解，迭代后期也难以找到
+
+### RMSProp
+AdaGrad的改进，采用了指数加权平均的思想来处理st
+
+$$
+\boldsymbol s_t = γ \boldsymbol{s_{t-1}} + (1-γ) \boldsymbol{g_t} ⊙ \boldsymbol{g_t}
+\\
+x_t = x_{t-1} - \frac{η}{\sqrt{s_t + \epsilon}} ⊙ \boldsymbol{g_t} 
+$$
+
+### AdaDelta
+同样是对AdaGrad的改进
+
+不同之处在于维护了一个$\Delta x$并以此作为学习率
+
+$$
+\boldsymbol s_t = γ \boldsymbol{s_{t-1}} + (1-γ) \boldsymbol{g_t} ⊙ \boldsymbol{g_t}
+\\
+\Delta x_{t} = γ \Delta x_{t-1} + (1-γ) \boldsymbol{g_t} ⊙ \boldsymbol{g_t}
+\\
+x_t = x_{t-1} - \sqrt{ \frac{\Delta x_{t-1} + \epsilon}{s_t + \epsilon} } ⊙ \boldsymbol{g_t}
+$$
+
+### Adam
+RMSProp算法与动量法的结合
+
+动量项：
+$$
+v_t = (1-γ) \boldsymbol{g_t} + γ \boldsymbol{v_{t-1}}
+$$
+
+RMSProp引入的项
+$$
+\boldsymbol s_t = γ \boldsymbol{s_{t-1}} + (1-γ) \boldsymbol{g_t} ⊙ \boldsymbol{g_t}
+$$
+
+将v0和s0初始化为0，则
+$$
+v_t = (1-γ) \sum_{i=1}^t γ^{t-i} \boldsymbol{g_i}
+\\
+s_t = (1-γ) \sum_{i=1}^t γ^{t-i} \boldsymbol{g_i} ⊙ \boldsymbol{g_t}
+$$
+
+试图归一化其权值，有：
+$$
+(1-γ) \sum_{i=1}^t γ^{t-i} = (1-γ) (\frac{1}{1-γ} - \frac{1-γ^t}{1-γ}) = 1-γ^t
+$$
+
+因此
+$$
+\boldsymbol{\hat v_t} = \frac{\boldsymbol{v_t}}{1-γ^t}
+\\
+\boldsymbol{\hat s_t} = \frac{\boldsymbol{s_t}}{1-γ^t}
+$$
+
+则更新算法为
+$$
+x_t = x_{t-1} - \frac{\eta \hat v_t}{\sqrt{\hat s_t} + \epsilon}
+$$
