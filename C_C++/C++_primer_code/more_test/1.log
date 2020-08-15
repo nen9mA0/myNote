@@ -1,0 +1,173 @@
+====Mystr char* constructor
+==== data: 1
+==== length: 1
+==== pointer: 0x409068
+==Test char* constructor
+== pointer: 0x409040
+====Mystr char* constructor
+==== data: 2
+==== length: 1
+==== pointer: 0x4090a8
+==Test char* constructor
+== pointer: 0x409080
+====Mystr default constructor
+==== data: 
+==== length: 0
+==== pointer: 0x4090e8
+==Test string constructor
+== data: 3
+== length: 1
+== pointer: 0x4090c0
+====Mystr char* constructor
+==== data: 4
+==== length: 1
+==== pointer: 0x409128
+==Test char* constructor
+== pointer: 0x409100
+====Mystr default constructor
+==== data: 
+==== length: 0
+==== pointer: 0x409168
+==Test default constructor
+== data: 
+== length: 0
+== pointer: 0x409140
+================ string test ================
+====Mystr default constructor
+==== data: 
+==== length: 0
+==== pointer: 0x62fc88
+==Test string constructor
+== data: 1234
+== length: 4
+== pointer: 0x62fc60
+====== Test print ======
+pointer: 0x62fc60
+data: 1234
+length: 4
+====== Mystr print ======
+data: 
+length: 0
+====Mystr default constructor
+==== data: 
+==== length: 0
+==== pointer: 0x62fd38
+==Test copy constructor
+== data: 1234
+== length: 4
+== source pointer: 0x62fc60
+== destin pointer: 0x62fd10
+changedata call
+== Test setdata ==
+pointer: 0x62fd10
+setdata call end
+====Mystr default constructor
+==== data: 
+==== length: 0
+==== pointer: 0x62fcf8
+==Test copy constructor
+== data: change
+== length: 4
+== source pointer: 0x62fd10
+== destin pointer: 0x62fcd0
+== Test destructor ==
+pointer: 0x62fcd0
+==== Mystr destructor
+pointer: 0x62fcf8
+== Test destructor ==
+pointer: 0x62fd10
+==== Mystr destructor
+pointer: 0x62fd38
+====== Test print ======
+pointer: 0x62fc60
+data: change
+length: 4
+====== Mystr print ======
+data: 
+length: 0
+tst pointer: 0x62fc60
+================ Mystr test ================
+====Mystr char* constructor
+==== data: 1234
+==== length: 4
+==== pointer: 0x62fd78
+==Test char* constructor
+== pointer: 0x62fd50
+== Test destructor ==
+pointer: 0x62fd50
+==== Mystr destructor
+pointer: 0x62fd78
+====== Test print ======
+pointer: 0x62fc60
+data: 
+length: 1769523
+====== Mystr print ======
+data: 1234
+length: 4
+====Mystr default constructor
+==== data: 
+==== length: 0
+==== pointer: 0x62fdf8
+==Test copy constructor
+== data: 
+== length: 1769523
+== source pointer: 0x62fc60
+== destin pointer: 0x62fdd0
+changemystr call
+== Test setmystr ==
+pointer: 0x62fdd0
+====Mystr char* constructor
+==== data: change
+==== length: 6
+==== pointer: 0x62fbe0
+==== Mystr destructor
+pointer: 0x62fbe0
+====Mystr default constructor
+==== data: 
+==== length: 0
+==== pointer: 0x62fdb8
+==Test copy constructor
+== data: 
+== length: 1769523
+== source pointer: 0x62fdd0
+== destin pointer: 0x62fd90
+== Test destructor ==
+pointer: 0x62fd90
+==== Mystr destructor
+pointer: 0x62fdb8
+== Test destructor ==
+pointer: 0x62fdd0
+==== Mystr destructor
+pointer: 0x62fdf8
+====== Test print ======
+pointer: 0x62fc60
+data: 
+length: 1769523
+====== Mystr print ======
+data: 
+length: 0
+================ End Test ================
+== Test destructor ==
+pointer: 0x62fc60
+==== Mystr destructor
+pointer: 0x62fc88
+== Test destructor ==
+pointer: 0x409140
+==== Mystr destructor
+pointer: 0x409168
+== Test destructor ==
+pointer: 0x409100
+==== Mystr destructor
+pointer: 0x409128
+== Test destructor ==
+pointer: 0x4090c0
+==== Mystr destructor
+pointer: 0x4090e8
+== Test destructor ==
+pointer: 0x409080
+==== Mystr destructor
+pointer: 0x4090a8
+== Test destructor ==
+pointer: 0x409040
+==== Mystr destructor
+pointer: 0x409068
