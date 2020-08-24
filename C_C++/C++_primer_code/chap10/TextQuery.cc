@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
     tq.read_file(filein);
     filein.close();
 
-    tq.print_map();
+    //tq.print_map();
     while (1)
     {
         std::cout << "Input Word To Query:" << std::endl;

@@ -204,6 +204,65 @@ void *p = &a;
 double *b = static_cast<double*>(p)
 ```
 
+### 运算符
+
+#### 优先级与结合性
+
+##### 右结合
+
+即从右到左，如
+
+```cpp
+a = b = c;
+```
+
+##### 左结合
+
+即从左到右，如
+
+```cpp
+a = b * c / d;
+```
+
+#### 优先级及结合性表
+
+| 优先级 | 运算符       | 功能              | 结合性   |
+| ------------ | ----------------- | -------- | ------ |
+| I | ::           | 作用域            | 从左到右 |
+| II | .            | 成员选择          | 从左到右 |
+| II | ->           | 成员选择          | 从左到右 |
+| II | []           | 下标              | 从左到右 |
+| II | ()           | 函数调用 类型构造 | 从左到右 |
+| III | ++ --        | 后自增 自减       | 从右到左 |
+| III | typeid       | 类型id            | 从右到左 |
+| III | castname<>() | 强制类型转换      | 从右到左 |
+| IV | sizeof       | 大小              | 从右到左 |
+| IV | ++ --        | 前自增 自减       | 从右到左 |
+| IV | ~            | 位取反            | 从右到左 |
+| IV | !            | 逻辑非            | 从右到左 |
+| IV | + -          | 正负号            | 从右到左 |
+| IV | * &          | 取值 取址         | 从右到左 |
+| IV | (type)       | 强制类型转换      | 从右到左 |
+| IV | new delete   | 创建 释放         | 从右到左 |
+| V | ->*  ( ptr->*p ) | 指向成员操作的指针 | 从左到右 |
+| V | .*    ( obj.*p ) | 指向成员操作的指针 | 从左到右 |
+| VI | * / | 乘 除 | 从左到右 |
+| VI | % | 模 | 从左到右 |
+| VII | + - | 加 减 | 从左到右 |
+| VIII | << >> | 左移右移 | 从左到右 |
+| IX | < <= > >= | 比较 | 从左到右 |
+| X | == != | 相等 不等 | 从左到右 |
+| XI | & | 位与 | 从左到右 |
+| XII | ^ | 位异或 | 从左到右 |
+| XIII | \| | 位或 | 从左到右 |
+| XIV | && | 逻辑与 | 从左到右 |
+| XV | \|\| | 逻辑或 | 从左到右 |
+| XVI | ?: | 三元运算符 | 从右到左 |
+| XVII | = *= /= %= += -= | 赋值和复合赋值 | 从右到左 |
+| XVII | <<= >>= &= ^= \|= | 赋值和复合赋值 | 从右到左 |
+| XVIII | throw | 抛出异常 | 从右到左 |
+| XIX | , | 逗号 | 从左到右 |
+
 ## 第六章 语句
 
 ### goto语句
@@ -2748,6 +2807,17 @@ class Abstract: Father
 };
 ```
 
+**注意这里的GetChar在Father中是virtual声明的函数**
+
+也可以直接在基类中声明一个纯虚函数
+
+```cpp
+class Abstract
+{
+	virtual void display();
+};
+```
+
 ### 容器与继承
 
 将容器直接用于同时保存基类对象或派生类对象可能导致问题
@@ -2759,3 +2829,93 @@ class Abstract: Father
 
 ### 句柄类与继承
 
+在C++中，要实现动态绑定的特性只能通过指针调用对象
+
+```cpp
+Father *p = &child;
+Father& ref = child;
+Father f = child;		//这里使用子类初始化一个父类对象
+
+p->func();				//这里调用子类child对象的func
+ref.func();				//同上
+f.func();				//这里只能调用父类的func
+```
+
+句柄类旨在通过一个包装类来避免指针的使用的同时实现动态绑定
+
+#### 设计要点
+
+* 应该实现类似智能指针的功能
+* 句柄类决定了句柄接口屏蔽或是不屏蔽继承层次，若不屏蔽，用户需了解和使用各个层次的对象
+
+#### 指针型句柄
+
+不屏蔽继承层次。
+
+这种句柄只对类做一个比较简单的包裹，使其可以直接通过类对象调用动态绑定的函数，而不需要通过指针
+
+##### 实现
+
+下面是一个简易的实现，完整代码在`C++PRIMER_CODE/chap15/pointer_handler.cc`
+
+```cpp
+class Handler
+{
+public:
+    Handler(): use(new int(1)), class_ptr(nullptr) {  }
+    Handler(ClassBase& p): use(new int(1)), class_ptr(&p) {  }
+    Handler(const Handler& h): use(h.use), class_ptr(h.class_ptr) { *use++; }
+    ~Handler() { DecrUse(); }
+    Handler& operator=(Handler& rhs) { *(rhs.use)++; DecrUse(); use = rhs.use; class_ptr = rhs.class_ptr; return *this; }
+    ClassBase& operator*() const { if(class_ptr) { return *class_ptr; } else { throw std::logic_error("NULL REF"); } }
+    ClassBase* operator->() const { if(class_ptr) { return class_ptr; } else { throw std::logic_error("NULL Pointer"); } }
+private:
+    void DecrUse() { if(--*use == 0) { delete class_ptr; delete use; } }
+
+    int *use;
+    ClassBase* class_ptr;
+};
+```
+
+这里包含了智能指针的功能，主要通过重载*和->来实现句柄功能
+
+##### 使用
+
+此时假设需要调用一个派生类的成员函数，以往需要
+
+```cpp
+int CallFunc(ClassBase& a)
+{
+    return a.func();
+}
+```
+
+或者
+
+```cpp
+int CallFunc(ClassBase* a)
+{
+    return a->func();
+}
+```
+
+现在可以支持这样的调用
+
+```cpp
+int CallFunc(Handler a)
+{
+	return a->func();
+}
+```
+
+因为Handler类重载了->，因此`a->func()`相当于`p = Handler::operator->(a); p->func();`
+
+#### 值型句柄
+
+屏蔽继承层次
+
+值型句柄不限于简单的包裹类，而是在初始设计的时候就将各个类的继承关系考虑好，对外部用户来说，只需要使用一个同样的句柄类来进行所有的操作，但实际上内部通过某些设计达到通过统一的句柄类调用不同类对象的目的
+
+举例说明，现在有一个表示物品的基类Item，其中一个派生类为书本ItemBook，构造时需要传入书名和价格，另一个派生类为衣服ItemClothes，构造时需要传入款式和颜色。我们在构造时无论输入的是书本还是衣服，都使用`Handler("book name", 10)`或`Handler("Clothes", "red")`。至于如何区分两者则封装在Handler的重载构造函数中。
+
+更具体的例子见`C++PRIMER_CODE/chap15/TextQueryPlus.cc`
