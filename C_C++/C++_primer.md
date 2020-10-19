@@ -2919,3 +2919,6 @@ int CallFunc(Handler a)
 举例说明，现在有一个表示物品的基类Item，其中一个派生类为书本ItemBook，构造时需要传入书名和价格，另一个派生类为衣服ItemClothes，构造时需要传入款式和颜色。我们在构造时无论输入的是书本还是衣服，都使用`Handler("book name", 10)`或`Handler("Clothes", "red")`。至于如何区分两者则封装在Handler的重载构造函数中。
 
 更具体的例子见`C++PRIMER_CODE/chap15/TextQueryPlus.cc`
+
+## 第十六章 模板与泛型编程
+

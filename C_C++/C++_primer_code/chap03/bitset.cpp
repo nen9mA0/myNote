@@ -1,23 +1,22 @@
 #include <iostream>
 #include <vector>
 #include <bitset>
-
-using namespace std;
+#include <string>
 
 int main(void)
 {
-	string str("11010010");
-	bitset<32> b(str);
+	std::string str = "11010010";
+	std::bitset<8> b(str);
 
-	cout<<".any"<<endl<<b.any()<<endl;
-	cout<<".none"<<endl<<b.none()<<endl;
-	cout<<".count"<<endl<<b.count()<<endl;
-	cout<<".size"<<endl<<b.size()<<endl;
-	cout<<"b[2]"<<endl<<b[2]<<endl;
-	cout<<".test(2)"<<endl<<b.test(2)<<endl;
-	cout<<".set"<<endl<<b.set()<<endl;
-	b(str);
-	cout<<b<<endl;
+	std::cout<<".any"<<std::endl<<b.any()<<std::endl;
+	std::cout<<".none"<<std::endl<<b.none()<<std::endl;
+	std::cout<<".count"<<std::endl<<b.count()<<std::endl;
+	std::cout<<".size"<<std::endl<<b.size()<<std::endl;
+	std::cout<<"b[2]"<<std::endl<<b[2]<<std::endl;
+	std::cout<<".test(2)"<<std::endl<<b.test(2)<<std::endl;
+	std::cout<<".set"<<std::endl<<b.set()<<std::endl;
+	b = 0x1;
+	std::cout<<b<<std::endl;
 
 	return 0;
 }

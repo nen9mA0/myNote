@@ -1,5 +1,9 @@
 ## 图形学
 
+https://zhuanlan.zhihu.com/cgnotes
+
+https://www.scratchapixel.com/
+
 ### 直线
 
 #### DDA算法
@@ -152,4 +156,110 @@ void bresenham(int x0, int y0, int x1, int y1)
 [最后再看，对优化部分解释的很清楚](https://blog.csdn.net/cjw_soledad/article/details/78886117)
 
 #### 胶囊体采样
+
+### 旋转
+
+#### 2D
+
+##### 复数
+
+$$
+\begin{aligned}
+z_1 &= a + b i
+\\
+z_2 &= c + d i
+\\
+z_1 z_2 &= (a + b i) (c + d i)
+\\
+ &= (ac-bd) + (bc + ad)i
+\end{aligned}
+$$
+
+向量形式
+$$
+\begin{aligned}
+z_1 &=
+\begin{bmatrix}
+a \\
+b
+\end{bmatrix}
+
+\\
+~
+\\
+
+z_2 &=
+\begin{bmatrix}
+c \\
+d
+\end{bmatrix}
+
+\\
+~
+\\
+
+z_1 z_2 &= 
+\begin{bmatrix}
+a & -b \\
+b & a
+\end{bmatrix}
+\begin{bmatrix}
+c \\
+d
+\end{bmatrix}
+\\
+&=
+\begin{bmatrix}
+ac - bd \\
+ad + bc
+\end{bmatrix}
+
+\end{aligned}
+$$
+拓展：如果根据上式把z看做矩阵
+
+矩阵形式：
+$$
+\begin{aligned}
+
+z_1 &=
+\begin{bmatrix}
+a & -b \\
+b & a
+\end{bmatrix}
+
+\\
+~
+\\
+
+z_2 &=
+\begin{bmatrix}
+c & -d \\
+d & c
+\end{bmatrix}
+
+\\
+~
+\\
+
+z_1 z_2 &=
+\begin{bmatrix}
+a & -b \\
+b & a
+\end{bmatrix}
+\begin{bmatrix}
+c & -d \\
+d & c
+\end{bmatrix}
+
+\\
+&=
+\begin{bmatrix}
+ac-bd & -(ad+bc) \\
+ad+bc & ac-bd
+\end{bmatrix}
+
+\end{aligned}
+$$
+因此乘法运算结果符合我们对向量矩阵形式的规定，因此可以写成矩阵形式
 

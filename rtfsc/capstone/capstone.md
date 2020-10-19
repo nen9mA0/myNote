@@ -1,12 +1,12 @@
-### 注意
+## 注意
 
-#### X86
+### X86
 
 * X86与X86 reduce指令集差别仅在于是否有XOP8 XOP9 XOPA和3DNOW指令集
 
-### cs.c
+## 顶层接口
 
-顶层接口
+### cs.c
 
 #### 结构体
 
@@ -39,6 +39,90 @@ struct cs_struct {
 	GetRegisterAccess_t reg_access;
 	struct insn_mnem *mnem_list;	// linked list of customized instruction mnemonic
 };
+```
+
+##### cs_insn
+
+* id  当前指令id。每条指令的id唯一，对应id可以在枚举类型`[ARCH]_insn`中找到，如x86的id在`x86.h`的`x86_insn`枚举中定义
+* address  指令地址
+* size  指令长度
+* bytes  机器码
+* mnemonic  助记符
+* op_str  操作数
+* cs_detail  下面说明，在`CS_OPT_DETAIL = CS_OPT_OFF`时不可用
+
+```c
+/// Detail information of disassembled instruction
+typedef struct cs_insn {
+	/// Instruction ID (basically a numeric ID for the instruction mnemonic)
+	/// Find the instruction id in the '[ARCH]_insn' enum in the header file
+	/// of corresponding architecture, such as 'arm_insn' in arm.h for ARM,
+	/// 'x86_insn' in x86.h for X86, etc...
+	/// This information is available even when CS_OPT_DETAIL = CS_OPT_OFF
+	/// NOTE: in Skipdata mode, "data" instruction has 0 for this id field.
+	unsigned int id;
+
+	/// Address (EIP) of this instruction
+	/// This information is available even when CS_OPT_DETAIL = CS_OPT_OFF
+	uint64_t address;
+
+	/// Size of this instruction
+	/// This information is available even when CS_OPT_DETAIL = CS_OPT_OFF
+	uint16_t size;
+
+	/// Machine bytes of this instruction, with number of bytes indicated by @size above
+	/// This information is available even when CS_OPT_DETAIL = CS_OPT_OFF
+	uint8_t bytes[24];
+
+	/// Ascii text of instruction mnemonic
+	/// This information is available even when CS_OPT_DETAIL = CS_OPT_OFF
+	char mnemonic[CS_MNEMONIC_SIZE];
+
+	/// Ascii text of instruction operands
+	/// This information is available even when CS_OPT_DETAIL = CS_OPT_OFF
+	char op_str[160];
+
+	/// Pointer to cs_detail.
+	/// NOTE: detail pointer is only valid when both requirements below are met:
+	/// (1) CS_OP_DETAIL = CS_OPT_ON
+	/// (2) Engine is not in Skipdata mode (CS_OP_SKIPDATA option set to CS_OPT_ON)
+	///
+	/// NOTE 2: when in Skipdata mode, or when detail mode is OFF, even if this pointer
+	///     is not NULL, its content is still irrelevant.
+	cs_detail *detail;
+} cs_insn;
+```
+
+##### cs_detail
+
+```c
+typedef struct cs_detail {
+	uint16_t regs_read[16]; ///< list of implicit registers read by this insn
+	uint8_t regs_read_count; ///< number of implicit registers read by this insn
+
+	uint16_t regs_write[20]; ///< list of implicit registers modified by this insn
+	uint8_t regs_write_count; ///< number of implicit registers modified by this insn
+
+	uint8_t groups[8]; ///< list of group this instruction belong to
+	uint8_t groups_count; ///< number of groups this insn belongs to
+
+	/// Architecture-specific instruction info
+	union {
+		cs_x86 x86;     ///< X86 architecture, including 16-bit, 32-bit & 64-bit mode
+		cs_arm64 arm64; ///< ARM64 architecture (aka AArch64)
+		cs_arm arm;     ///< ARM architecture (including Thumb/Thumb2)
+		cs_m68k m68k;   ///< M68K architecture
+		cs_mips mips;   ///< MIPS architecture
+		cs_ppc ppc;	    ///< PowerPC architecture
+		cs_sparc sparc; ///< Sparc architecture
+		cs_sysz sysz;   ///< SystemZ architecture
+		cs_xcore xcore; ///< XCore architecture
+		cs_tms320c64x tms320c64x;  ///< TMS320C64x architecture
+		cs_m680x m680x; ///< M680X architecture
+		cs_evm evm;	    ///< Ethereum architecture
+		cs_mos65xx mos65xx;	///< MOS65XX architecture (including MOS6502)
+	};
+} cs_detail;
 ```
 
 #### X86中的设置
@@ -86,9 +170,13 @@ CAPSTONE_EXPORT cs_err CAPSTONE_API cs_open(cs_arch arch, cs_mode mode, csh *han
 
 清除cs_open建立的context
 
+##### fill_insn
+
+
+
 ##### skipdata_size
 
-根据当前context的架构返回需要对齐的字节数
+根据当前context的架构对应的字节对齐数
 
 ##### cs_option
 
@@ -143,6 +231,8 @@ end
 ##### skipdata_opstr
 
 按照十六进制打印skipdata
+
+## arch
 
 ### X86Module.c
 
