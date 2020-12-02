@@ -184,6 +184,8 @@ build_libxed
 * internal_or_public  若为internal表示该field不在instructions operands array template中
 * dio  该field用于decoder input/output/skip
 * eio  该field用于encoder input/output
+* encoder_input  若为EI（encoder input）则为true
+* decoder_skip  若为DS（decoder skip）则为true
 
 #### operands_storage_t
 
@@ -454,6 +456,120 @@ ptr类型（byte ptr  word ptr等）
 
 ## read_encfile
 
+### 概述
+
+#### fields文件
+
+生成一个[operands_storage_t](#operands_storage_t)对应全局变量storage_field。其中`operand_fields`属性维护了一个[operand_t](#operand_t)列表，每个operand_t结构都存储了一个patterns或ins中的域的属性
+
+#### state文件
+
+保存了一些类似宏与实际标志位对应的结构，用于宏替换pattern中的一些标号，如在state中有规则
+
+```
+not64                   MODE!=2
+cs_prefix               SEG_OVD=1
+```
+
+而在enc-pattern中有一条规则为`not64 cs_prefix -> 0x2e no_return`，则在pattern解析时替换为`MODE!=2 SEG_OVD=1 -> 0x2e`
+
+#### pattern文件
+
+分为enc-pattern dec-pattern和enc-dec-pattern，其中dec-pattern只比enc-dec-pattern多了一些内容，多出来的部分很多是enc-pattern的反向记录，如该节最后的示例
+
+pattern文件存放了ins文件中使用到的一些函数的定义，或者在程序中称为非终结符nonterminal
+
+所有的非终结符存放在`self.nts`和`self.ntlufs`中，此外pattern中还解析`self.seqs`，定义了一个操作序列
+
+##### 非终结符列表
+
+self.nts和self.ntlufs都存放了非终结符[nonterminal_t](#nonterminal_t)，区别只是ntlufs有定义返回值
+
+每个nonterminal_t定义了一个规则列表[rule_t](#rule_t)，每个rult_t维护了一个[action_t](#action_t)列表和一个[conditions_t](#conditions_t)列表，用于定义一个条件式与对应执行的操作。这两者都对应了ins文件中调用的一些函数
+
+##### 操作序列
+
+定义了一个操作调用的非终结符。其中带返回值的ntlufs直接按照原名写在规则中，不带返回值的nts在规则中加入`_BIND`后缀，此外还有`_EMIT`等后缀。如下
+
+```
+SEQUENCE ISA_BINDINGS
+   FIXUP_EOSZ_ENC_BIND()
+   FIXUP_EASZ_ENC_BIND()
+   ASZ_NONTERM_BIND()
+   INSTRUCTIONS_BIND()
+   OSZ_NONTERM_ENC_BIND()   # OSZ must be after the instructions so that DF64 is bound (and before any prefixes obviously)
+   PREFIX_ENC_BIND()
+   REX_PREFIX_ENC_BIND()
+
+# These emit the bits and bytes that make up the encoding
+SEQUENCE ISA_EMIT
+   PREFIX_ENC_EMIT()
+   REX_PREFIX_ENC_EMIT()
+   INSTRUCTIONS_EMIT()  # THIS TAKES CARE OF MODRM/SIB/DISP/IMM
+```
+
+##### enc-pattern与dec-pattern对应关系示例
+
+```
+xed_reg_enum_t GPR8_R()::
+
+OUTREG=XED_REG_AL -> REG=0x0
+OUTREG=XED_REG_CL -> REG=0x1
+OUTREG=XED_REG_DL -> REG=0x2
+OUTREG=XED_REG_BL -> REG=0x3
+
+OUTREG=XED_REG_AH -> REG=0x4  NOREX=1
+OUTREG=XED_REG_CH -> REG=0x5  NOREX=1
+OUTREG=XED_REG_DH -> REG=0x6  NOREX=1
+OUTREG=XED_REG_BH -> REG=0x7  NOREX=1
+
+OUTREG=XED_REG_SPL ->  REG=0x4  NEEDREX=1
+OUTREG=XED_REG_BPL ->  REG=0x5  NEEDREX=1
+OUTREG=XED_REG_SIL ->  REG=0x6  NEEDREX=1
+OUTREG=XED_REG_DIL ->  REG=0x7  NEEDREX=1
+
+OUTREG=XED_REG_R8B -> REXR=1 REG=0x0
+OUTREG=XED_REG_R9B -> REXR=1 REG=0x1
+OUTREG=XED_REG_R10B -> REXR=1 REG=0x2
+OUTREG=XED_REG_R11B -> REXR=1 REG=0x3
+OUTREG=XED_REG_R12B -> REXR=1 REG=0x4
+OUTREG=XED_REG_R13B -> REXR=1 REG=0x5
+OUTREG=XED_REG_R14B -> REXR=1 REG=0x6
+OUTREG=XED_REG_R15B -> REXR=1 REG=0x7
+```
+
+对应dec中的
+
+```
+xed_reg_enum_t GPR8_R()::
+
+REXR=0 REG=0x0  | OUTREG=XED_REG_AL
+REXR=0 REG=0x1  | OUTREG=XED_REG_CL
+REXR=0 REG=0x2  | OUTREG=XED_REG_DL
+REXR=0 REG=0x3  | OUTREG=XED_REG_BL
+
+REXR=0 REG=0x4  REX=0   | OUTREG=XED_REG_AH
+REXR=0 REG=0x5  REX=0   | OUTREG=XED_REG_CH
+REXR=0 REG=0x6  REX=0   | OUTREG=XED_REG_DH
+REXR=0 REG=0x7  REX=0   | OUTREG=XED_REG_BH
+
+REXR=0 REG=0x4  REX=1   | OUTREG=XED_REG_SPL
+REXR=0 REG=0x5  REX=1   | OUTREG=XED_REG_BPL
+REXR=0 REG=0x6  REX=1   | OUTREG=XED_REG_SIL
+REXR=0 REG=0x7  REX=1   | OUTREG=XED_REG_DIL
+
+REXR=1 REG=0x0  | OUTREG=XED_REG_R8B
+REXR=1 REG=0x1  | OUTREG=XED_REG_R9B
+REXR=1 REG=0x2  | OUTREG=XED_REG_R10B
+REXR=1 REG=0x3  | OUTREG=XED_REG_R11B
+REXR=1 REG=0x4  | OUTREG=XED_REG_R12B
+REXR=1 REG=0x5  | OUTREG=XED_REG_R13B
+REXR=1 REG=0x6  | OUTREG=XED_REG_R14B
+REXR=1 REG=0x7  | OUTREG=XED_REG_R15B
+```
+
+
+
 ### 类
 
 #### encoder_input_files_t
@@ -479,7 +595,7 @@ ptr类型（byte ptr  word ptr等）
 
 read-encfile的主要类
 
-根据读入的encoder_input_files_t创建各个输入文件对应的数据结构，初始化时主要根据storage_fields_file创建[operands_storage_t](#operands_storage_t)
+根据读入的encoder_input_files_t创建各个输入文件对应的数据结构，初始化时主要根据storage_fields_file（这里用的是all-fields.txt）创建[operands_storage_t](#operands_storage_t)
 
 ##### 重要属性
 
@@ -520,6 +636,30 @@ mode64   NOREX=0  NEEDREX=1 REXW[w] REXB[b] REXX[x] REXR[r] -> 0b0100 wrxb
 ```
 MODE=2   NOREX=0  NEEDREX=1 REXW[w] REXB[b] REXX[x] REXR[r] -> 0b0100 wrxb
 ```
+
+###### finalize_decode_conversion
+
+<span id="finalize_decode_conversion"/>
+
+根据传入的ICLASS，OPERAND，PATTERN和UNAME创建[iform_t](#iform_t)结构
+
+主要通过调用[parse_one_decode_rule](#parse_one_decode_rule)解析
+
+###### parse_one_decode_rule
+
+<span id="parse_one_decode_rule"/>
+
+* 首先将pattern分割，循环并进行下面判断
+
+  * 处理`!= =`的式子，获取lhs（等式左边）
+
+    * 若lhs是`VL`，特殊处理（具体见代码，跟VEX指令有关）
+    * 若在storage_field中（storage_field是由all-field.txt读取的，在[encoder_configuration_t](#encoder_configuration_t)初始化创建时构造的），则将lhs加入modal_patterns列表
+    * 特殊处理`BCRC=1`
+
+    用来处理PATTERN中如`MOD!=3`的式子，最后将`"MOD"`加入modal_patterns列表
+
+  * 调用[make_decode_patterns](#make_decode_patterns)处理其他类型的式子
 
 ###### parse_encode_lines
 
@@ -567,6 +707,80 @@ sequence和nonterminal为两种不同的符号，这种符号定义了一连串�
 
 最后返回nt ntluf seqs三个字典
 
+###### parse_decode_lines
+
+<span id="parse_decode_lines"/>
+
+解析`all-enc-dec-patterns.txt`，分别有下列模式串
+
+* ntluf  有返回值的nt，创建[nonterminal_t](#nonterminal_t)
+
+  ```
+  <rettype> <ntname>()::
+  ```
+
+* nt  创建[nonterminal_t](#nonterminal_t)
+
+  ```
+  <ntname>()::
+  ```
+
+* rule  调用[parse_decode_rule](#parse_decode_rule)，创建对应[rule_t](#rule_t)
+
+  ```
+  <action> | <cond>
+  ```
+
+###### parse_decode_rule
+
+<span id="parse_decode_rule"/>
+
+由上文，根据`<action> | <cond>`的格式解析action和condition，主要处理下面几种pattern
+
+这里的action和cond表示传入的字串，最后作为action构建rule的为new_actions和new_conds
+
+* action
+  * `<name>=xxx`  若`<name>`存在与storage_fields且其属性为EI(encoder_input)，则在cond中加入当前规则式
+  * `<name>[<bits>]`  将`<name>=<bits>`加入cond，并将当前规则式加入new_actions
+* cond
+  * 
+
+###### make_decode_patterns
+
+<span id="make_decode_patterns"/>
+
+处理pattern除了`!= =`式子外的其他规则式，注意传入的式子是已经被分割后的
+
+* 若为`<ntname>()`形式，则说明是个nonterminal，创建`blot_t("nt")`
+* 若为`<name>[<bits>]`形式（如`REG[0b000]`），则根据bits内容创建`blot_t("bits")`或`blot_t("letter")`
+  * 若bits为`0b`开头，则视作二进制串，作为blot_t的value值，`length`值为`len(<bits>)`，`field_name`值为`<name>`
+  * 若bits为`0x`或`0X`开头，则视作十六进制串，各字段同上
+  * 其他情况下，bits以`_`作为分隔符，可以建立多个blot_t。一种是01字串的，只能以二进制形式建立`blot_t("bits")`；另一种是以字母建立`blot_t("letter")`
+* 若为0x 0X开头，建立`blot_t("bits")`
+* 若为0b开头，建立`blot_t("bits")`
+* 若为下划线分隔的数字和字母串（如`011_rrr`），则以`_`为分隔符创建`blot_t("bits")`或`blot_t("letter")`列表
+* 若为字母串，则创建`blot_t("letter")`
+* 若为等式，则创建`blot_t("od")`
+* 若为不等式，也创建`blot_t("od")`
+
+###### read_decoder_instruction_file
+
+<span id="read_decoder_instruction_file"/>
+
+* 非终结符nt，并建立[nonterminal_t](#nonterminal_t)，**一个nt对应了多组ICLASS**，且可能来自不同文件（有点类似于命名空间的概念）
+
+  ```
+  <ntname>()::
+  ```
+
+* ICLASS，一个ICLASS由一组`{}`标识，**每个ICLASS对应了多组PATTERN**。该函数主要读取ICLASS的下列属性
+
+  * UNAME  可能不存在
+  * PATTERN
+  * OPERAND
+
+* PATTERN OPERAND，一个ICLASS可能存在多组，其中OPERAND可能没有参数，则被置为`''`。最后调用[finalize_decode_conversion](#finalize_decode_conversion)读取
+
 ###### read_encoder_files
 
 <span id="read_encoder_files"/>
@@ -579,13 +793,22 @@ sequence和nonterminal为两种不同的符号，这种符号定义了一连串�
 
 循环，直到文件列表的文件处理完，返回所有非终结符和序列（类型见[parse_encode_lines](#parse_encode_lines)）
 
+###### read_decoder_files
+
+<span id="read_decoder_files"/>
+
+调用[read_decoder_instruction_file](#read_decoder_instruction_file)处理all-enc-patterns.txt文件
+
+
+
 ###### run
 
 类的主方法，根据输入文件创建各种数据结构
 
 * 调用[parse_state_bits](#parse_state_bits)方法读取all-state.txt
 * 调用[read_encoder_files](#read_encoder_files)，主要处理all-enc-patterns.txt文件
-* 调用[read_decoder_files](#read_decoder_files)，
+* 调用[read_decoder_files](#read_decoder_files)，主要处理all-enc-instructions.txt和all-enc-dec-patterns.txt文件
+* 
 
 #### rvalue_t
 
@@ -605,21 +828,65 @@ condition_t列表
 
 主要解析下面几种条件表达式
 
-* rhs = lhs，其中rhs被初始化为[rvalue_t](#rvalue_t)
-* rhs != lhs，处理方式与上面的类似
+* lhs = rhs，其中rhs被初始化为[rvalue_t](#rvalue_t)
+* lhs != rhs，处理方式与上面的类似
 * 若既没匹配到=也没匹配到!=，以输入的字串作为lhs，'*'作为rhs构造rvalue_t（这种情况一般lhs是otherwise）
 
 上面的lhs可以是如`name[bits]`的形式来指明位数
+
+#### rule_t
+
+<span id="rule_t"/>
+
+保存一条规则，具体就是一组[condition_t](#condition_t)及其对应的[action_t](#action_t)
+
+*其中若conditon_t名字为`ENCODER_PREFERRED`，则将该规则删掉，将`enc_preferred`置为true*
 
 #### sequencer_t
 
 ​	<span id="sequencer_t"/>
 
+记录保存一个从pattern中读取的sequence，内容是rule_t集合（如[parse_encode_lines](#parse_encode_lines)中读取的seq）
+
 #### nonterminal_t
 
 <span id="nonterminal_t"/>
 
+记录保存一个从pattern中读取的nt或ntluf，内容是rule_t集合（如[parse_encode_lines](#parse_encode_lines)中读取的nt/ntluf）
 
+#### iform_t
+
+<span id="iform_t"/>
+
+
+
+#### blot_t
+
+解析enc-instructions的pattern生成的对应结构。一个PATTERN字符串可能根据空格分隔，生成多个blot_t
+
+主要在[parse_one_decode_rule](#parse_one_decode_rule)中被创建，用于解析每个pattern的动作，此后与解析的其他字段创建[iform_t](#iform_t)，在此处blot_t与condition一起创建[rule_t](#rule_t)
+
+可能有下列类型
+
+* bits
+* letters
+* nt  nonterminal
+* od  operand decider
+
+##### 主要属性
+
+* type    `bits letters nt od`
+* nt    类型为nonterminal时，保存nt名字
+* value    类型为bits时，保存bits的值；类型为od时，保存表达式的值（只有数字值）
+* length    类型为bits时，若由hex创建则为8，由二进制串创建为二进制串长度；类型为letter时为letter长度
+* letters    类型为letter时，保存letters
+* field_name    类型为bits或letter时，对于类似`name[bits]`的字串保存其的name；类型为od时保存lhs
+* field_offset    若建立blot_t时是由下划线分隔的字串创建，此处记录了当前创建的blot_t对应表达式所在的offset
+* od_equals    类型为od时，保存运算符!=或=
+
+#### operand_t
+
+解析enc-instructions的operand生成的对应结构。
 
 
 
