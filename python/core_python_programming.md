@@ -325,7 +325,7 @@ print hi
 ### 元组
 ##### 元组是不可变类型
 
-### Chapter 7 映像和集合类型
+## Chapter 7 映像和集合类型
 
 ### 字典
 
@@ -466,7 +466,7 @@ s -= set('pypi')
 
 所有对象参数应是可哈希的
 
-### Chapter 8 条件和循环
+## Chapter 8 条件和循环
 
 #### for的三种常见迭代方法
 
@@ -534,7 +534,7 @@ filter(lambda x:x%2,seq)
 [(i,j) for i in range(3) for j in range(5)]
 ```
 
-### Chapter 9  文件输入和输出
+## Chapter 9  文件输入和输出
 
 #### 打开
 
@@ -699,7 +699,7 @@ os.path
 * dbhash/bsddb/dbm/gdb,/dumbdbm  数据库模块
 * shelve  将dbm和序列化模块结合
 
-### Chapter 10  错误和异常
+## Chapter 10  错误和异常
 
 #### 异常类
 
@@ -850,7 +850,7 @@ except AssertionError, args:
 
 可以以一个异常类为派生类，通过**raise**语句触发
 
-### Chapter 11 函数和函数式编程
+## Chapter 11 函数和函数式编程
 
 #### def语句
 
@@ -1286,7 +1286,7 @@ for i in xrange(5):
 
 返回值：0 1 2 3 4 5 6 7 8 9 11 13 16 20 25
 
-### Chapter 12 模块
+## Chapter 12 模块
 
 #### 模块和文件
 
@@ -1418,7 +1418,7 @@ sys.modules.keys()
 #coding:UTF-8
 ```
 
-### Chapter 13 面向对象编程
+## Chapter 13 面向对象编程
 
 #### 类
 
@@ -2107,7 +2107,7 @@ f = foo()
 TypeError: Class must rewrite __str__()
 ```
 
-### Chapter14 执行环境
+## Chapter14 执行环境
 
 #### 可调用对象
 
@@ -2307,7 +2307,7 @@ def my_exit_func(old_exit = prev_exit_func)
 
 ###### os.kill(pid)
 
-### Chapter15 正则表达式
+## Chapter15 正则表达式
 
 模块：re
 
@@ -2345,7 +2345,7 @@ subn返回一个替换后结果+替换次数的元组
 
 利用正则表达式划分字符串
 
-### Chapter16 网络编程
+## Chapter16 网络编程
 
 ##### 服务端套接字
 
