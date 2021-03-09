@@ -2447,16 +2447,11 @@ hubby[1][1] = 50.00
   * posix \n
   * 旧版Mac \r
   * Win \r\n
-
 * 文件路径名分隔   os.sep
   * posix /
   * 旧版Mac :
   * win \
-
 * 环境变量分隔    os.pathsep
-
 * 当前工作目录    os.curdir
-
 * 当前父目录     os.pardir
 
-    
