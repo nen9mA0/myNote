@@ -77,7 +77,36 @@ P（PREV_INUSE）位表示前一个chunk正在被使用，若该位被清零（�
 
 A（NON_MAIN_ARENA）位表示当前chunk没有在main_arena上。在程序刚开始运行时，内存池只有一个main_arena。当其他线程被创建时，每个线程都有自己的thread_arena，因此这些使用thread_arena的chunk的A位会被设置。若想获取这些不在main_arena上的chunk，应该在[heap_info](#heap_info)的ar_ptr成员上调用[heap_for_ptr](#heap_for_ptr)
 
-注意，每个malloc_chunk的第一个成员是prev_size，该成员也在上一个chunk的末尾，因此对于一个空闲chunk来说
+注意，每个malloc_chunk的第一个成员是prev_size，该成员也在上一个chunk的末尾，因此对于一个空闲chunk来说，chunk末尾后的第一个元素也是该chunk的大小（即有两个位置记录了chunk大小）
+
+此外，还有下列三种情况较为例外
+
+* top chunk是一个特殊chunk，因为top chunk没有下一个连续的块需要进行索引，所以top chunk不会使用尾随的大小字段。malloc初始化时top chunk默认存在。当top chunk长度小于MINSIZE时，会自动扩充其大小
+* 倒数第二个表示位M（IS_MMAP）表示当前chunk是否是直接mmap得到的。若该位被设置，则其他两个标志位自动被忽略，因为mmap分配的chunk既不与其他chunk相邻，也不在main_arena上。此外M位会在hooks.c的malloc_set_state被设置
+* fastbin中的chunk被分配器视为已分配的块，他们只会在自身体积过大的时候被合并
+
+##### 内部数据结构
+
+用于保存算法内部状态的结构体主要就是malloc_state，除此之外基本没有其他用于保存内部状态的变量，除了下面两个情况
+
+* 若定义了USE_MALLOC_LOCK，则应有一个额外的malloc_mutex定义
+* 若mmap不支持MAP_ANONYMOUS参数，则应额外为mmap定义一个文件描述符
+
+在使用了许多用于减少内部数据结构大小的技巧后，最终大约使用1K来保存malloc的内部状态（当size_t为4字节时）
+
+##### bins
+
+指向一系列空闲chunk的bin头的指针数组，每个bin都在一个双链表中。这些bin的大小大约符合log的关系，且这些bin的数量很多（128）。虽然看起来很浪费空间，但实际上运用得很好。这些bin的大小虽然可能并不符合大多数malloc请求的空间大小，但对于合并一系列chunk
+
+
+
+###### bin索引
+
+对于小于512字节的bin，
+
+
+
+
 
 ### 注释
 
@@ -530,7 +559,9 @@ mmap可以接受的最大内存分配请求。因为部分系统在mmap分配的
 
 这块内容因为对于理解malloc结构较重要，所以移到[chunk](#chunk)
 
+##### 内部数据结构相关
 
+这块内容也比较重要，所以移到[内部数据结构](#内部数据结构)
 
 
 
@@ -1714,6 +1745,12 @@ static void *sysmalloc(INTERNAL_SIZE_T nb, mstate av);
 
 * 如果av为空，或`nb > mp_.mmap_threshold && mp_.n_mmaps < mp_.n_mmaps_max`，则直接使用mmap
 
+  * 首先将请求的大小nb转化为页面大小，注意这里使用mmap分配chunk，比普通的chunk少了一个SIZE_SZ大小的长度，因为普通chunk在分配后，后一个chunk的prev_size域可以被使用，而mmap分配的chunk没有连续的下一个chunk
+
+    * 由于上述原因，转化调用的是`ALIGN_UP(nb + SIZE_SZ, pagesize)`，此外若自定义了MALLOC_ALIGNMENT，调用`ALIGN_UP(nb + SIZE_SZ + MALLOC_ALIGN_MASK, pagesize)`
+
+  * 调用mmap前有一个有趣的处理，就是判断转化后的大小是否大于nb。这应该是为了防止整数溢出，具体见有趣的写法
+
   * 使用mmap时，若分配成功，分配结束后malloc_chunk用途如下
 
     ```c
@@ -1772,7 +1809,25 @@ next_env_entry(char ***position)
 
 position是一个指向字符串数组（`char** or char*[]`）的指针（一般是argv[]或envp[]），因此current为字符串数组头指针。`++current`使current指向字符串数组的下一个元素（实际上的操作是`current += sizeof(char**)`）
 
+##### sysmalloc
 
+在将请求大小转化为mmap申请页面大小时有下列代码
+
+```c
+if (MALLOC_ALIGNMENT == 2 * SIZE_SZ)
+    size = ALIGN_UP(nb + SIZE_SZ, pagesize);
+else
+    size = ALIGN_UP(nb + SIZE_SZ + MALLOC_ALIGN_MASK, pagesize);
+tried_mmap = true;
+
+/* Don't try if size wraps around 0 */
+if ((unsigned long)(size) > (unsigned long)(nb))
+{
+    ...
+}
+```
+
+看起来size肯定大于nb，但一种情况例外：当`nb+SIZE_SZ >= (size_t)-pagesize`时，即nb很大，以至于加上pagesize后会导致size_t溢出，这时size输出为0。如果不对这种情况进行特殊处理可能导致安全问题
 
 ### 一些可能的bug
 
