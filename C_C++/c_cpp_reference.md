@@ -71,6 +71,16 @@ struct S {
 
 https://en.cppreference.com/w/c/atomic/memory_order
 
+此外关于内存一致性模型的一篇文章
+
+https://www.zhihu.com/question/24301047/answer/83422523
+
+还有两篇比较全面的文章（推荐）
+
+https://www.codedump.info/post/20191214-cxx11-memory-model-1/
+
+https://www.codedump.info/post/20191214-cxx11-memory-model-2/
+
 ```c
 enum memory_order {
     memory_order_relaxed,
@@ -82,9 +92,199 @@ enum memory_order {
 };
 ```
 
-memory order 指定了在一个原子操作的周围，其他内存访问的组织方式。
+memory order 指定了在**一个线程中**的某个原子操作的周围，其他内存存取的组织方式。或者可以说它限定了编译器和CPU可以对某个原子操作周围的指令做何种程度的指令重排
+
+**注意**：由于内存/缓存一致性的问题，**一个Thread 1上的操作的副作用（side-effect）不一定马上在Thread 2上可见**，这也是memory order存在的原因。因此在考虑memory order问题时不应只考虑到指令在Thread上的执行次序，因为在**其他Thread的视角**中，指令执行次序可能不同于该Thread指令的实际执行次序
+
+#### 一些术语
+
+* read-modify-write  特指一些形如fetch_add / compare_and_exchange 的原子操作，特征是存在读取-修改-写入的序列
+
+* Synchronized-with  强调的是变量被修改后的传播关系（propagate），若线程A修改某变量之后的结果对线程B可见，则称A synchronizes-with B
+
+* A Sequenced-before B  指在**同一线程**中，A在B之前执行，且A操作的结果B操作可见
+
+* A Happens-before B  操作B执行时可见操作A的结果
+  * 对于单线程，操作A排列在操作B前
+  * 对于多线程，操作A Inter-thread Happens-before 操作B
+  
+* A Inter-thread Happens-before B  如果一个线程中的操作A synchronized-with 另一个线程中的操作B，则A Inter-thread Happens-before B
+
+* carry-a-dependency  引入依赖，即下列情况
+
+  ```c
+  int* b = a;
+  int c = *b;
+  ```
+
+  称这两行代码间的关系为carry-a-dependency
+
+* total order  全序关系
+
+* single total order  在这里指如果在所有线程的视角中，看到的某一线程的原子操作都是相同的，则称之为single total order
+
+#### 内存模型
+
+实际上分为4类，从上到下一致性要求逐渐变弱
+
+* 顺序一致性（Sequence Consistency，SC）
+  * memory_order_seq_cst
+* Acquire-Release
+  * memory_order_release
+  * memory_order_acquire
+  * memory_order_acq_rel
+* Release-Consume
+  * memory_order_release
+  * memory_order_consume
+* Relaxed
+  * memory_order_relaxed
+
+#### Sequentially-consistent ordering
+
+##### 说人话环节
+
+这里的对应内存模型就是上述的顺序一致性模型，这种模型是最简单的模型，跟我们平常编程时候的想法一致，要求为
+
+* 每个处理器的执行顺序和代码中的顺序（program order）一样
+* 所有处理器都只能看到一个单一的操作执行顺序
+
+因此每个处理器看到的指令及其副作用是一样的，但这也要求每个核之间进行很多同步，很影响性能
+
+##### cppreference的说法与理解
+
+所有被标记为**memory_order_seq_cst**的原子操作，不仅会像Release-Acquire ordering一样组织内存操作，此外还会为所有有该标记的原子操作建立一个 single total modification order
+
+一般来说
+
+* 对于一个使用了 memory_order_seq_cst 的读取原子量M的操作B，B的视角下可以观测到下列行为之一
+
+  * 若对于某个happens-before B的对M进行修改的操作A，则这两个操作的顺序符合single total order（即在所有线程看来，都有A happends-before B）
+  * 对于上述的A，如果有一些对M的操作是在A与B间发生的（假设为C D），且标记不是memory_order_seq_cst，那么B可能会观察到一些C和D操作的结果
+  * 若B前不存在上述的A，且在B前有一些对M的操作（假设为C D），且标记不是memory_order_seq_cst，则B可能会观察到一些对M的无关联修改（unrelated modification）
+
+* 若有一个memory_order_seq_cst标记的atomic_thread_fence *sequenced-before* B，B的视角下可以观测到下列行为之一
+
+  * 在单独全序中先出现于 X 的上个 M 的 `memory_order_seq_cst` 修改
+  * 在单独全序中后出现于它的某些 M 的无关联修改
+
+  （这段照抄了cppreference的，我的理解是在X前的关于M的memory_order_seq_cst修改A是happens-before X的，且顺序为single total order；或可以观测到一些对M的无关联修改，这些修改是后出现于X的（原文：some unrelated modification of M that appears later in M's modification order））
+
+* 若有如下的情景
+
+  ```c
+  // Thread 1:
+  atomic_store_explicit(M, memory_order_seq_cst);		// A
+  atomic_thread_fence(memory_order_seq_cst);			// X
+  
+  // Thread 2
+  atomic_thread_fence(memory_order_seq_cst);			// Y
+  r1 = atomic_load_explicit(M, memory_order_seq_cst);	// B
+  ```
+
+  则B可以观察到下列行为
+
+  * A操作的结果
+  * 一些在M的修改顺序（modification order）中于A之后的对M的无关联修改
+
+* 对于M的一对原子操作A和B，在M的modification order中，B在下列情况中将出现于A之后
+
+  * 有一个memory_order_seq_cst标记的atomic_thread_fence X *sequenced-before* A，且X appears before B
+  * 有一个memory_order_seq_cst标记的atomic_thread_fence Y *sequenced-before* B，且A appears before Y
+  * 有memory_order_seq_cst标记的atomic_thread_fence X和Y，其中A *sequenced-before* X，Y *sequenced-before* B
+
+注意：
+
+* 只要有不带memory_order_seq_cst标签的原子操作进入，则程序立即丧失序列一致性（SC）
+* fence只为fence本身建立total order，而并不会为一般的原子操作建立total order
+
+典型应用：
+
+多个生产者多个消费者，且在每个消费者看来，生产者的行为需要保持一致
+
+Total Sequential ordering要求对于多核系统的CPU的每条指令都需要full memory fence，可能成为性能瓶颈
+
+#### Release-Acquire ordering
+
+##### 说人话环节
+
+要求其实很简单，如图
+
+要求在指令重排时满足下列条件（这里图疑似有误，绿框应该不是“针对A的内存操作”而是所有内存操作，因为consume语义中才有数据依赖的关系）
+
+![](pic/read-acquire.png)
+
+![](pic/write-release.png)
+
+##### cppreference的说法与理解
+
+使用方式
+
+```c
+// Thread 1:
+atomic_store_explicit(x, memory_order_release);		// store时使用release
+
+// Thread 2:
+r1 = atomic_load_explicit(x, memory_order_acquire);	// load时使用acquire
+```
+
+如上所示，当thread1和thread2使用这两个tag操作**同一个变量时**，在thread1视角下**store前**的**所有内存写入操作**，对thread2来说，在**load后**保证可见
+
+上述保证只针对thread1和thread2，从其他线程的视角看到的操作不能保证与这两个thread一致
+
+典型应用：
+
+互斥锁，如mutex spinlock。当一个锁被Thread A release，被Thread B acquire，Thread A在临界区的所有操作应该对Thread B可见，因为此时Thread B将要进入同一块临界区
+
+#### Release sequence
+
+##### 说人话环节
+
+如果store操作被标记为`memory_order_release`  `memory_order_acq_rel` 或 `memory_order_seq_cst`
+
+load操作被标记为 `memory_order_cunsume`  `memory_order_acquire` 或 `memory_order_seq_sct`
+
+具有上述性质的store和load交替出现，并形成依赖关系，load每次读取的都是先前store的值，那么这一连串操作构成release sequence，且第一个store synchronized-with 最后一个load
+
+##### cppreference的说法与理解
+
+若一些原子量被存储-释放（store-released），并且多个其他线程对于上述原子量存在read-modify-write的操作，那么一个释放序列（release sequence）就会形成：所有对同一个原子量有read-modify-write操作的线程互相同步，且即使这些线程的store操作没有memory_order_release语义，也会以此方式进行操作。
+
+典型应用：
+
+* 一个生产者，多个消费者的情况
+
+#### Release-Consume ordering
+
+##### 说人话环节
+
+和Release-Acquire很类似，但仅对与被操作的原子变量M有数据依赖关系的先后顺序进行限制，对于其他的操作不限制
+
+##### cppreference的说法与理解
+
+使用方式
+
+```c
+// Thread 1:
+atomic_store_explicit(x, memory_order_release);		// store时使用release
+
+// Thread 2:
+r1 = atomic_load_explicit(x, memory_order_consume);	// load时使用consume
+```
+
+##### cppreference的说法与理解
+
+如上所示，当thread1和thread2使用这两个tag操作**同一个原子变量时**，在thread1的视角下**store前**的**所有与该原子变量存在依赖（carries dependency）的内存写入操作**，对thread2来说，在**load后**保证可见
+
+上述保证只针对thread1和thread2，从其他线程的视角看到的操作不能保证与这两个thread一致
+
+典型应用
+
+* 读取一个很少被修改的并发数据结构
+* 生产者-消费者场景之一：生产者通过一个指针将数据结构传递给消费者。这种情形下只需要保证消费者读取的数据结构的内容正确，不需要考虑生产者对内存的其他修改
 
 #### Relaxed ordering
+
+##### cppreference的说法与理解
 
 使用`memory_order_relaxed`标记的原子操作是非同步的，它不会对多个内存访问强加一个顺序，而只保证操作的原子性和写操作的顺序一致性
 
@@ -97,25 +297,19 @@ r2 = atomic_load_explicit(x, memory_order_relaxed); // C
 atomic_store_explicit(y, 42, memory_order_relaxed); // D
 ```
 
-若使用relaxed ordering，则完全可能出现`r1==r2==42`的情况，因为这种组织方式不保证对不同内存的访问顺序，因此即使程序里语句的出现顺序是A在B前，C在D前，编译器编译时完全可能出现thread2的CD顺序调换，使得D首先执行，其后执行AB，最后执行C，就会出现都为42的情况
+若使用relaxed ordering，则允许产生结果（不一定代表实际中会出现，但标准允许，也就是说编程时不应假设该情况不会出现）`r1==r2==42`的情况，因为这种组织方式不保证对不同内存的访问顺序，因此即使程序里A在B前，C在D前（Sequenced-before），但**没有约束要求对y的读取A先出现于对y的修改D，也没有约束要求对x的读取C先出现于对x的修改B**
+
+relaxed仅要求**同一线程**中对**同一原子变量**的操作保持顺序，但在其他线程的视角下这些操作的顺序并不在考虑范围
 
 一个典型应用就是一个自增的计数器，因为这种计数器只需要保证原子性。但需要注意shared_ptr中的计数器减操作需要锁
 
-#### Release-Consume ordering
+#### 关于Volatile
 
-正确的使用方式是
+在同一线程中，一个对于volatile左值操作的指令不能被重排到一个具有可观测副作用的序列点之后（意思应该就是不能被重排到一个写内存的指令后），但这个限制对于其他线程来说不一定是可见的，所以对volatile变量的读写不能用于inter-thread synchronization
 
-```c
-// Thread 1:
-atomic_store_explicit(x, memory_order_release);		// store时使用release
+此外，volatile的读写是非原子的，且不对内存操作进行排序（非volatile内存访问可以被重排到volatile内存访问的前后）
 
-// Thread 2:
-r1 = atomic_load_explicit(x, memory_order_consume);	// load时使用consume
-```
-
-
-
-# Cpp
+一个例外就是在VS中，默认的volatile写具有release语言，volatile读有acquire语义，所以可以被用于同步。
 
 # Cpp
 

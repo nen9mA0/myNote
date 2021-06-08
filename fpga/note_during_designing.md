@@ -295,6 +295,8 @@ endmodule
 
 ## 加法器
 
+https://www.pianshen.com/article/338251058/
+
 ### 串行加法器
 
 ```
