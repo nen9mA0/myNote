@@ -1,0 +1,24 @@
+3
+Q: q0, q1, q2, q3, q4, q5, q6, q7, q8
+start: q0
+recv: q8
+(q0, a) = (q1, X, R)
+(q1, a) = (q1, a, R)
+(q1, b) = (q2, Y, R)
+(q1, Y) = (q1, Y, R)
+(q2, b) = (q2, b, R)
+(q2, c) = (q3, Z, L)
+(q2, Z) = (q2, Z, R)
+(q3, b) = (q3, b, L)
+(q3, Y) = (q3, Y, L)
+(q3, Z) = (q3, Z, L)
+(q3, a) = (q3, a, L)
+(q3, X) = (q0, X, R)
+(q0, Y) = (q4, Y, R)
+(q4, Y) = (q4, Y, R)
+(q4, b) = (q5, Y, R)
+(q5, Z) = (q5, Z, R)
+(q5, c) = (q6, Z, R)
+(q6, c) = (q7, Z, R)
+(q7, emp) = (q8, emp, 0)
+(q0, b) = (q4, b, 0)
