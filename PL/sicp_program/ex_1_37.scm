@@ -1,0 +1,20 @@
+(define (cont-frac n d k)
+    (define (cont-frac-iter n d i)
+        (if (< i k)
+            (/ (n i) (+ (d i) (cont-frac-iter n d (+ i 1))) )
+            (/ (n i) (d i))
+        )
+    )
+    (cont-frac-iter n d 1)
+)
+
+
+(define (cont-frac2 n d k)
+    (define (cont-frac2-iter n d i result)
+        (if (> i 0)
+            ( cont-frac2-iter n d (- i 1) ( / (n i) (+ result (d i)) ) )
+            result
+        )
+    )
+    (cont-frac2-iter n d (- k 1) (/ (n k) (d k)))
+)

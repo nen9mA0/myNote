@@ -1,0 +1,13 @@
+(define (tan-cf x k)
+    (define (tan-cf-iter i)
+        (if (< i k)
+            ( - (n i) (/ (square x) (tan-cf-iter (+ i 1))) )
+            (n i)
+        )
+    )
+    (/ x (tan-cf-iter 1))
+)
+
+(define (n j)
+    (- (* j 2) 1)
+)

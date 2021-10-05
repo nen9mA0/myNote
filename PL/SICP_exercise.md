@@ -420,7 +420,260 @@ $$
 => ( gcd (remainder (remainder 206 40) (remainder 40 (remainder 206 40))) (remainder (remainder 40 (remainder 206 40)) (remainder (remainder 206 40) (remainder 40 (remainder 206 40)))) )
 ```
 
+### 1.22
 
+注意新版本runtime以秒为单位，因此应该用real-time-clock代替（但也只是以毫秒为单位）
+
+```lisp
+(define (time-prime-test n)
+    (newline)
+    (display n)
+    (start-prime-test n (real-time-clock))
+)
+
+(define (start-prime-test n start-time)
+    (if (prime n)
+        (report-prime (- (real-time-clock) start-time) n)
+        (start-prime-test (next-odd n) start-time)
+    )
+)
+
+(define (report-prime elapsed-time n)
+    (display " *** ")
+    (display elapsed-time)
+    n
+)
+
+; ==== search for primes ====
+
+(define (next-odd n)
+    (if (= (remainder n 2) 1)
+        (+ n 2)
+        (+ n 1)
+    )
+)
+
+(define (search-for-prime n)
+    (time-prime-test n)
+)
+```
+
+### 1.23
+
+```lisp
+(define (smallest-divisor n)
+    (find-divisor n 2)   ; 从2开始测试
+)
+
+(define (divide a b)
+    (= (remainder a b) 0)
+)
+
+(define (find-divisor n test-divisor)
+    (cond
+        ( (> (square test-divisor) n)  n )           ; 若test-divisor^2 > n，说明没有找到因子，这里直接返回n
+        ( (divide n test-divisor)  test-divisor )    ; 若能被整除，则找到因子
+        ( else (find-divisor n (next-divisor test-divisor)) ) ; 否则测试下一个数是否为因子
+    )
+)
+
+(define (next-divisor n)
+    (cond
+        ((= n 2) 3)
+        (else (+ n 2))
+    )
+)
+
+(define (prime n)
+    (= n (smallest-divisor n))
+)
+```
+
+### 1.25
+
+不行因为计算量太大了
+
+### 1.26
+
+因为这种写法将导致解释器计算两次 `(expmod base (/ exp 2) m)` ，最终使得每次迭代时计算量没有减半，因此为O(n)
+
+### 1.27
+
+程序见sicp_program/ex_1_27.scm
+
+### 1.28
+
+核心就是在expmod中加入对非平凡根的判断
+
+```lisp
+(define (expmod base exp m)
+    (cond
+        ( (= exp 0) 1 )
+        ( (nontrivial base m) 0 )
+        ( (even exp) (remainder (square (expmod base (/ exp 2) m)) m) )
+        (else (remainder (* base (expmod base (- exp 1) m)) m))
+    )
+)
+
+(define (nontrivial a n)
+    (cond
+        ( (= a 1)  false )
+        ( (= a (- n 1))  false )
+        ( (= (remainder (square a) n) 1) true )
+        ( else false)
+    )
+)
+```
+
+### 1.29
+
+1.29~1.31 程序直接见sicp_program
+
+### 1.32
+
+1.32和1.33对先前的运算定义了一个抽象程度更高的算子，其中1.33用到了一个技巧，即当函数调用点只有一个参数，但需要传入两个参数时，可以采用lambda闭包传入第二个参数，类似柯里化
+
+```lisp
+(define (filtered-accumulate combiner null-value filter term a next b)
+    (cond 
+        ( (> a b) null-value )
+        ( (filter a) (combiner (term a) (filtered-accumulate combiner null-value filter term (next a) next b)) )
+        ( else (filtered-accumulate combiner null-value filter term (next a) next b) )
+    )
+)
+```
+
+这里的filter参数是一个函数，用来判断当前传入的a是否符合条件
+
+在第一小问中，只需判断a是否为素数，因此传入的参数就是a
+
+在第二小问中，需要判断a和b是否互素，而判断是否互素的函数肯定需要两个参数，即 `(co-prime a b)` ，其中co-prime的第二个参数始终是b，因此可以传入这样一个函数作为filter
+
+```lisp
+(lambda (x) co-prime(x, b))
+```
+
+因此为了实现第二小问功能，调用的方式为
+
+```lisp
+(filtered-accumulate * 1 (lambda (x) (coprime x b)) ret_self a next b)
+```
+
+### 1.34
+
+```lisp
+(define (f g)
+    (g 2)
+)
+```
+
+则调用(f f)时
+
+```lisp
+   (f f)
+=> (f 2)
+=> (2 2)
+```
+
+因为这里相当于试图将2作为函数调用，因此报错
+
+### 1.35
+
+$$
+\begin{aligned}
+& \phi = \frac{1+\sqrt{5}}{2}
+\\
+& 对于变换 f(x) = 1 + \frac{1}{x}，不动点即
+\\
+& x = 1 + \frac{1}{x} \Rightarrow x^2 - x - 1 = 0
+\\
+& 即 x = \frac{1 \pm \sqrt{5}}{2}，得证
+\end{aligned}
+$$
+
+### 1.36
+
+平均值版本收敛较快，见ex_1_36
+
+### 1.41
+
+```lisp
+   (( (double (double double)) inc) 5)
+```
+
+`(double double)` => 4次double，`(double (double double))` => 8次double，因此对inc使用8次double，得到16次inc
+
+### 1.42~44
+
+见程序
+
+### 1.45~46
+
+还没写
+
+### 2.1
+
+写进2_1_1_rat中了
+
+### 2.2
+
+见程序
+
+### 2.3
+
+这里采用了两种定义矩形的方式，一种是指定4个点，一种是指定对角线。这样写是因为只有这样才能定义斜向的矩形。
+
+check-rect通过检测矩形构造的四条边是否垂直来检查矩形的合法性
+
+### 2.4
+
+```lisp
+(define (cons x y)
+    ( lambda (m) (m x y) )
+)
+
+(define (car z)
+    ( z (lambda (p q) p) )
+)
+```
+
+假设有如下调用
+
+```
+   (define x (cons 1 2))
+=> x = ( lambda (m) (m 1 2) )
+
+   (define y (car x))
+=> y = ( x (lambda (p q) p) )
+=> y = ( (lambda (m) (m 1 2)) (lambda (p q) p) )
+=> y = ( (lambda (p q) p) 1 2 )
+=> y = 1
+```
+
+所以cdr定义应该为
+
+```lisp
+(define (cdr z)
+    ( z (lambda (p q) q) )
+)
+```
+
+### 2.6 丘奇数
+
+```lisp
+( define zero (lambda (f) (lambda (x) x)) )
+
+(define (add-1 n)
+    ( lambda (f) (lambda (x) (f ((n f) x))) )
+)
+```
+
+若调用
+
+```
+   (add-1 zero)
+=> (  ( lambda (f) (lambda (x) (f ((n f) x))) )  (lambda (f) (lambda (x) x)) )
+```
 
 
 

@@ -417,7 +417,7 @@
 其实就是在讲渐进界
 $$
 \begin{aligned}
-& 若存在与n无关的整数k1 k2，使得
+& 若存在与n无关的整数k1 \ k2，使得
 \\
 & k_1 f(n) \leq R(n) \leq k_2 f(n)
 \\
@@ -526,7 +526,7 @@ $$
     (find-divisor n 2)   ; 从2开始测试
 )
 
-(define (divides a b)
+(define (divide a b)
     (= (remainder a b) 0)
 )
 
@@ -543,13 +543,360 @@ $$
 )
 ```
 
-###### 费马检查
+###### 费马检验
 
-费马小定理：若p是一个素数，对于任意不被p整除的a，有 $a^{p-1} \equiv 1 \ (mod \ p)$
+费马小定理：若p是一个素数，对于任意不被p整除的a，有 $a^{p-1} \equiv 1 \ (mod \ p)$ （或书里其实用到的是 $a^p \equiv a (mod \ p)$ ）
 
-这里为了方便，直接选取 $1 \leq a \leq p-1$
+这里为了方便，直接选取 $1 \leq a \leq p-1$ 
 
 费马素性检验的原理即：若选取的a不满足上式，则一定是合数，否则可能是素数。测试通过的a数目越多，p是素数的可能性越大
+
+要实现费马检查，首先应该实现一个expmod过程，即计算 $x^y \ mod \  m$ ，该算法也可以通过logn算法实现，这基于以下事实
+$$
+(a*b) \ mod \ m = ( (a \ mod \ m) * (b \ mod \ m) ) \ mod \ m
+$$
+所以可以用下面的递归法则来计算
+
+* 当y为偶数， $x^y \ mod \ m = ((x^{\frac{y}{2}} \ mod \ m) * (x^{\frac{y}{2}} \ mod \ m)) \ mod \ m$ 
+* 当y为奇数， $x^y \ mod \ m = ((x \ mod \ m) * (x^{y-1} \ mod \ m)) \ mod \ m$ 
+
+```lisp
+(define (expmod base exp m)
+    (cond
+        ( (= exp 0) 1 )
+        ( (even exp) (remainder (square (expmod base (/ exp 2) m)) m) )
+        (else (remainder (* base (expmod base (- exp 1) m)) m))
+    )
+)
+```
+
+素性检验逻辑如下，times指定了需要检验的次数
+
+```lisp
+(define (fermat-test n)
+    (define (try-it a)
+        (= (expmod a n n) a)     ; 注意这里的判断是 a^n mod n == a，这是因为选取的a < n，所以必有 a mod n = a
+    )
+    (try-it (+ 1 (random (- n 1))))  ; 注意这里+1，是因为random n的返回值是0 ~ n-1，而需要的a满足 1 <= a <= n-1
+)
+
+(define (fast-prime n times)
+    (cond
+        ( (= times 0) true )
+        ( (fermat-test n) (fast-prime n (- times 1)))
+        (else false)
+    )
+)
+```
+
+#### 用高阶函数抽象
+
+##### 过程作为参数
+
+将过程作为参数的思想其实可以与数学中的算子相类比，如
+$$
+\sum_{n=a}^b f(n) = f(a) + f(a+1) + \cdots + f(b)
+$$
+可以编程如下
+
+```lisp
+(define (sum func a b)
+    (if (> a b)
+        0
+        (+ (func a) (sum func (+ a 1) b))
+    )
+)
+```
+
+其中func就是以函数作为参数传入的。因此sum函数就相当于一个算子程序，接受func函数，func(a)到func(b)之和
+
+若f(n)=x^2，则
+
+```lisp
+(define (func x)
+    (square x)
+)
+```
+
+（程序见sicp_program/sum.scm）
+
+##### 用lambda构造过程
+
+scheme中的lambda也是一种创建匿名函数的方法，如上述计算平方和的程序可以写作
+
+```lisp
+(sum (lambda (x) (square x)) a b)
+```
+
+##### 用let创建局部变量
+
+let表达式一般形式是
+
+```lisp
+(let
+   ( (<var1>  <exp1>)
+     (<var2>  <exp2>)
+     ...
+     (<varn>  <expn>)
+   )
+   <body>
+)
+```
+
+注意这里的let其实是有一个作用域的
+
+因此let也可以被视作lambda的一种语法糖，因为上式等价于
+
+```lisp
+( (lambda (<var1>, <var2>, ... , <varn>)
+      <body>
+  )
+  <exp1>
+  <exp2>
+  ...
+  <expn>
+)
+```
+
+即使用varn替代expn
+
+**注意：** 当expn的表达式依赖于与局部变量同名的变量时，使用的依然是局部作用域外的变量，如下例，假设外部作用域中x的值是2
+
+```lisp
+(let ((x 3)
+      (y (+ x 2)))
+    (* x y)
+)
+```
+
+这里在计算 `x*y` 时，x=3，y=4，这是由于在计算y=x+2时，x取值为2而不是3
+
+
+
+假设希望计算的函数为
+$$
+f(x,y) = x(1+xy)^2 + y(1-y) + (1+xy)(1-y)
+$$
+很自然的想法就是将其表示为
+$$
+f(x,y) = xa^2 + yb + ab
+$$
+之前的做法是利用辅助过程来约束局部变量
+
+```lisp
+(define (f x y)
+    (define (f-helper a b)
+        ( + (* x (square a))
+            (* y b)
+            (* a b)
+        )
+    )
+    (f-helper (+ 1 (* x y)) (- 1 y))
+)
+```
+
+使用lambda可以改写如下
+
+```lisp
+(define (f x y)
+    ( (lambda (a b)
+        ( + (* x (square a))
+            (* y b)
+            (* a b)
+        )
+       )
+       (+ 1 (* x y))
+       (- 1 y)
+    )
+)
+```
+
+也可以使用let创建局部变量，可以改写如下
+
+```lisp
+(define (f x y)
+    (let (
+           (a (+ 1 (* x y)))
+           (b (- 1 y))
+         )
+      (+ (* x (square a))
+         (* y b)
+         (* a b))
+     )
+)
+```
+
+##### 过程作为一般性的方法
+
+两个表述过程的一般性的实例
+
+一个是通过区间折半的方法求方程的根，见sicp_program/1_3_3.scm
+
+一个是找出函数的不动点，即满足f(x)=x的点，如下
+
+```lisp
+(define (fixed-point f first-guess)
+    (define (try guess)
+        (let
+            ( (next (f guess)) )
+
+            (if (close-enough guess next)
+                next
+                (try next)
+            )
+        )
+    )
+    (try first-guess)
+)
+```
+
+这里查找不动点的迭代方式是：首先选取一个初始的猜测值first-guess，若f(first-guess)与first-guess的误差不到范围内，则迭代调用`f(f(first-guess))`
+
+但这种方法的坏处在于，不一定会收敛，且收敛速度较慢，因此一个改进是每次迭代使用 `guess = (average guess f(guess))` 来替代 `guess = f(guess)`
+
+```lisp
+(define (fixed-point-avr f first-guess)
+    (define (try guess)
+        (let
+            ( (next (average (f guess) guess)) )
+
+            (if (close-enough guess next)
+                next
+                (try next)
+           )
+        )
+    )
+    (try first-guess)
+)
+```
+
+##### 过程作为返回值
+
+如果一个过程的返回值是另一个过程，程序可以更加灵活。以上面的找不动点改进方法为例
+
+```lisp
+(define (average-damp f)
+    (lambda (x) (average x (f x)))
+)
+```
+
+这个函数传入f，返回值为一个计算 `average x f(x)` 的函数
+
+因此若将这个函数作为参数传入fixed-point函数，如使用fixed-point求根号，则
+
+```lisp
+(define (mysqrt2 x)
+    ( fixed-point (average-damp (lambda (y) (/ x y))) 1.0 )
+)
+```
+
+可以达到与fixed-point-avr相似的效果，因为在fixed-point中使用上述参数调用时， `(f guess)` 会被展开为 `( (average-damp (lambda (y) (/ x  y))) guess )` ，最后返回值为 ` ( ( lambda (n) (average n ((lambda (y) (/ x y)) n)) ) guess )` 即 `( average guess ((lambda (y) (/ x y)) guess) )` ，这与fixed-point-avr的迭代方式相同，优点在于采用这样的设计可以使得程序得以重用fixed-point算法，通过传入不同的函数来实现不同的迭代方式
+
+##### 牛顿法
+
+牛顿法的基本原理是，若函数g(x)是一个可微函数，则g(x)=0的一个解是f(x)的不动点，其中f(x)为
+$$
+f(x) = x - \frac{g(x)}{Dg(x)}
+$$
+Dg(x)为g(x)的导数，即
+$$
+Dg(x) = \frac{g(x+dx)-g(x)}{dx}
+$$
+则可以使用牛顿法来作为fixed-point算法的更新函数，即
+
+```lisp
+(define (deriv g)
+    (lambda (x)
+        (/ (- (g (+ x dx)) (g x)) dx)
+    )
+)
+
+(define (newton-transform g)
+    (lambda (x)
+        ( - x (/ (g x) ((deriv g) x)) )
+    )
+)
+
+(define (newtons-method g guess)
+    (fixed-point (newton-transform g) guess)
+)
+```
+
+##### 抽象和第一级过程
+
+如上面的几种求不动点方法所示，实际上可以对几种不动点求法进行进一步的抽象，即定义如下函数
+
+```lisp
+(define (fixe-point-of-transform g transform guess)
+    (fixed-point (tranform g) guess)
+)
+```
+
+其中g是要求不动点的函数，transform描述了每次迭代时应如何逼近
+
+
+
+一般而言，程序设计语言会对计算元素的可能使用方式强加上某些限制，带有最少限制的元素被称为具有**第一级**的状态。第一级元素一般有如下特性
+
+* 可以用变量命名
+* 可以提供给过程作为参数
+* 可以以过程作为结果返回
+* 可以包含在数据结构中
+
+### 第2章  构造数据抽象
+
+##### 序对
+
+是一个二元组，使用car访问第一个元素，cdr访问第二个元素。
+
+```lisp
+(define x (cons 1 2))
+(define y (cons 3 4))
+(define z (cons x y))
+
+(car (car z))
+=> 1
+
+(car (cdr z))
+=> 3
+```
+
+##### 抽象屏障
+
+主要描述了程序设计中将程序根据用途封装成不同层次，例子给了一个有理数计算的程序（sicp_program/2_1_1.scm）
+
+![](pic/sicp_2_1.png)
+
+##### 数据的过程性表示
+
+可以用过程来表示数据，这章节应该介绍了scheme函数的闭包性质，书中给了一个使用过程实现cons的例子
+
+```lisp
+(define (cons x y)
+    (define (dispatch m)
+        (cond
+            ( (= m 0) x)
+            ( (= m 1) y)
+            ( else (error "Argument must be 0 or 1") )
+        )
+    )
+    dispatch		; 注意这里返回的是一个函数，其定义在cons内
+)
+
+(define (car m)
+    (m 0)
+)
+
+(define (cdr m)
+    (m 1)
+)
+```
+
+
+
+
+
+
 
 
 
