@@ -1,0 +1,7 @@
+### nasm ###
+nasm 08\read_disk.asm -o 08\read_disk.bin
+# include common
+nasm 08\read_disk_2.asm -i common -o 08\read_disk_2.bin
+
+### write vhd ###
+python vhdwriter.py -n 0 I:\Document_backup\asm\virtual_Machine\vm\vm.vhd 08\read_disk.bin

@@ -1,0 +1,20 @@
+IO EQU 8800H
+CODE SEGMENT
+    ASSUME CS:CODE
+START:
+    MOV AX, 5
+    MOV BX, 10
+    SUB AX, BX
+
+    MOV AX, 5
+    SUB BX, AX
+
+    MOV AX, 5
+    MOV BX, 10
+    NOT BX
+    INC BX
+    ADD AX, BX
+HALT:
+    HLT
+CODE ENDS
+     END START
