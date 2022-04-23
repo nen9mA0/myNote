@@ -87,7 +87,7 @@ display:        ;parameter: a1:framebuffer pointer | a2:length  a3:position
     ret
 
 ; read disk
-; 4B address parameter: first push low addr, then push high addr(or segment pointer)
+; 4B address parameter: first push high addr, then push low addr(or segment pointer)
 read_disk:      ;para a1:number of read sector 2B(take 1B) | a2:buffer 4B ds:si little endian | a3:sector number 4B
     push bp
     mov bp, sp
@@ -101,13 +101,13 @@ read_disk:      ;para a1:number of read sector 2B(take 1B) | a2:buffer 4B ds:si 
     mov bx, ax              ; save sector number in bx
     mov dx, 0x1f2            ; 0x1f2  number of sector to operate  <== a1
     out dx, al
-    mov ax, [bp+0x6]         ; a3 sector number low 16b
+    mov ax, [bp+0x4]         ; a3 sector number low 16b
     inc dx                  ; 0x1f3 LBA addr:
     out dx, al               ;           0~7
     mov al, ah
     inc dx                  ; 0x1f4 LBA addr:
     out dx, al               ;           8~15
-    mov ax, [bp+0x4]
+    mov ax, [bp+0x6]
     inc dx                  ; 0x1f5 LBA addr:
     out dx, al               ;           16~23
     mov al, ah
@@ -121,10 +121,9 @@ read_disk:      ;para a1:number of read sector 2B(take 1B) | a2:buffer 4B ds:si 
     inc dx                  ; 0x1f7 CMD/STATUS: 0x20 Read
     out dx, al
 ;====================================
-    mov ax, [bp+0x8]
-    mov dx, [bp+0xA]
+    mov si, [bp+0x8]
+    mov ax, [bp+0xA]
     mov ds, ax
-    mov si, dx
 ;   from now, the segment pointer may be change, so we will not use any memory data
 
 ;   check if is ready for reading
@@ -192,4 +191,18 @@ read_disk:      ;para a1:number of read sector 2B(take 1B) | a2:buffer 4B ds:si 
     pop bp
     ret
 
+; input addr  ax:dx     output addr  ax:dx
+calc_base_addr:
+    push bx
 
+    mov bx, dx
+    and bx, 0xF     ; save low 4 bits of low word
+
+    ror ax, 0x4     ; addr a:bcde,  ax = a      -->     a000
+    shr dx, 0x4     ;               dx = bcde   -->     0bcd
+    or ax, dx       ;               ax          -->     abcd
+
+    mov dx, bx
+
+    pop bx
+    ret

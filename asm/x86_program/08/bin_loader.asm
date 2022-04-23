@@ -33,28 +33,33 @@ SECTION mbr align=16 vstart=0x7c00
     ; call display
     ; add sp, 0x6
 
+
     mov ax, 0x1
     push ax     ;read 1 sector
-    mov ax, [load_addr+2]   ;push si
+
+    mov ax, [load_addr+2]
+    mov dx, [load_addr]
+    call calc_base_addr
     push ax
-    mov ax, [load_addr]     ;push ds
-    push ax     ;buffer
-    mov ax, [app_sector]    ;sector index low
-    push ax
+    push dx
+
     mov ax, [app_sector+2]  ;sector index high
+    push ax
+    mov ax, [app_sector]    ;sector index low
     push ax
     call read_disk
     add sp, 0xA
 
-    mov ax, [load_addr]     ;push ds
+    mov ax, [load_addr+2]   ;push high
     push ax
-    mov ax, [load_addr+2]   ;push si
+    mov ax, [load_addr]     ;push low
     push ax     ;buffer
     call load_bin
     add sp, 0x4
 
-    mov si, [load_addr+2]   ;ATTENTION: SI must be assigned before DS change
-    mov ax, [load_addr]
+    mov dx, [load_addr]   ;ATTENTION: SI must be assigned before DS change
+    mov ax, [load_addr+2]
+    call calc_base_addr
     mov ds, ax
     mov es, ax
 
@@ -76,9 +81,11 @@ load_bin:    ;a1: dd pointer to bin header ds:si
     mov bx, [app_sector+2]
     mov [bp-0xA], bx
 
-    mov si, [bp+0x4]
+    mov dx, [bp+0x4]
     mov ax, [bp+0x6]
+    call calc_base_addr
     mov ds, ax
+    mov si, dx
 
     mov ax, [si]     ;length low
     mov dx, [si+2]   ;length high
@@ -95,7 +102,7 @@ load_bin:    ;a1: dd pointer to bin header ds:si
     jz @reloc
 ; === here we read the remain app ===
         push ax         ;number of sector
-        mov ax, ds       ;push ds
+        mov ax, ds      ;push ds
         add ax, 0x20
         push ax
         push si         ;push si
@@ -109,8 +116,8 @@ load_bin:    ;a1: dd pointer to bin header ds:si
             inc ax
             mov [bp-0xA], ax
         @2:
-        push bx         ; push low addr
         push ax         ; push high addr
+        push bx         ; push low addr
         call read_disk
         add sp, 0xA
 
@@ -148,6 +155,9 @@ reloc:      ;a1 ds:si  point to program header
     mov ax, [si+0x08]       ; high addr
     mov dx, [si+0x06]       ; low addr
     call calc_base_addr
+    mov dx, ax
+    mov ax, ds
+    add ax, dx
     mov [si+0x06], ax       ; here we use segment addr to replace [0x06] for long jmp at line 66 
 
     mov bx, si
@@ -160,6 +170,9 @@ reloc:      ;a1 ds:si  point to program header
         mov ax, [0x02+bx]
         mov dx, [bx]
         call calc_base_addr
+        mov dx, ax
+        mov ax, ds
+        add ax, dx
         mov [bx], ax
         add bx, 0x4
         loop @3
@@ -175,35 +188,13 @@ reloc:      ;a1 ds:si  point to program header
     ret
 
 
-calc_base_addr:     ;address dd ax:high word  dx:low word
-                    ;ds:si must point to app header
-    push bx
-    push cx
-
-    mov bx, dx
-    and bx, 0xF     ; save low 4 bits of low word
-
-    shl ax, 0xC     ; addr a:bcde,  ax = a      -->     a000
-    shr dx, 0x4     ;               dx = bcde   -->     0bcd
-    or ax, dx       ;               ax          -->     abcd
-
-    mov cx, ds
-    add ax, cx      ; add high word and ds
-
-    mov dx, bx      ; low 4bits
-
-    pop cx
-    pop bx
-    ret
-
 
 %include "common.asm"
 
 
 ;message db 'Loading Program...'
 ;message db 'Loading'
-load_addr   dw 0x1000
-            dw 0x0000
+load_addr   dd 0x10020
 app_sector  dd 100
 times 510-($-$$) db 0
                  db 0x55, 0xaa

@@ -1,2 +1,5 @@
-*.exe
 *~
+*.exe
+*.obj
+
+!/beginner/C&Asm/**/*.exe
