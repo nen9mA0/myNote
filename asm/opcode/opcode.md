@@ -78,7 +78,7 @@ REX prefix  64位长模式下可用
 * REX在下面几种情况中需要使用
 
   * 指令使用了64位操作数但该指令默认不是64位
-  * 使用了64位扩展寄存器（R8~R15  XMM8~XMM15  YMM8~YMM15  CR8~CR15  DR8~DR15）
+  * 使用了64位扩展寄存器（`R8~R15  XMM8~XMM15  YMM8~YMM15  CR8~CR15  DR8~DR15`）
   * 使用了SPL BPL SIL DIL
 
 * REX在下面情况中不应该使用
