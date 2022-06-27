@@ -66,11 +66,13 @@ lambda y . if (= y 0) then 1 else y^2
 #### Beta归约
 
 应用一个lambda表达式等价于通过把表达式中约束变量替换为调用时对应参数的实际值，其严格定义如下
+
 $$
 (lambda \ x \ . \ B) \ e \ \ = \ B[x:=e]
 \\
 if \ free(e) \subset \ free(B[x:=e])
 $$
+
 后面这个条件蕴含的意义在于，仅当beta化简不会引起约束变量和自由变量的冲突时，才可以使用beta归约。如下例
 
 ```
@@ -99,8 +101,3 @@ lambda演算中不存在变量的概念，只有函数，因此需要用函数�
 1: lambda s z . s z
 2: lambda s z . s (s z)
 ```
-
-
-
-
-

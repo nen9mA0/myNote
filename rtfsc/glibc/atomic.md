@@ -17,7 +17,7 @@ bool CompareAndSwap(int *mem, int oldval, int newval)
 }
 ```
 
- #### 构造宏
+#### 构造宏
 
 这里定义的宏是为了拼接成其他宏，因此暂时称为构造宏
 
@@ -46,8 +46,6 @@ __atomic_val_bysize (__arch_compare_and_exchange_val,acq, mem, newval, oldval)
 
 与上个宏一样，只不过这里新建了个宏以便于使用中区分类型
 
-
-
 #### 函数宏
 
 这里的函数宏主要就是为了定义CAS原语，基本调用格式是 `CAS(mem, newval, oldval)`。
@@ -75,8 +73,8 @@ acquire 操作，这个定义是其他操作的底层依赖之一
 #if !defined atomic_compare_and_exchange_val_acq \
     && defined __arch_compare_and_exchange_val_32_acq
 # define atomic_compare_and_exchange_val_acq(mem, newval, oldval) \
-  __atomic_val_bysize (__arch_compare_and_exchange_val,acq,		      \
-		       mem, newval, oldval)
+  __atomic_val_bysize (__arch_compare_and_exchange_val,acq,              \
+               mem, newval, oldval)
 #endif
 ```
 
@@ -91,11 +89,11 @@ acquire 操作
 #ifndef catomic_compare_and_exchange_val_acq
 # ifdef __arch_c_compare_and_exchange_val_32_acq
 #  define catomic_compare_and_exchange_val_acq(mem, newval, oldval) \
-  __atomic_val_bysize (__arch_c_compare_and_exchange_val,acq,		      \		// 使用__atomic_val_bysize定义
-		       mem, newval, oldval)
+  __atomic_val_bysize (__arch_c_compare_and_exchange_val,acq,              \        // 使用__atomic_val_bysize定义
+               mem, newval, oldval)
 # else
 #  define catomic_compare_and_exchange_val_acq(mem, newval, oldval) \
-  atomic_compare_and_exchange_val_acq (mem, newval, oldval)			// 使用atomic_compare_and_exchange_val_acq
+  atomic_compare_and_exchange_val_acq (mem, newval, oldval)            // 使用atomic_compare_and_exchange_val_acq
 # endif
 #endif
 ```
@@ -110,11 +108,11 @@ release操作
 ```c
 #ifndef catomic_compare_and_exchange_val_rel
 # ifndef atomic_compare_and_exchange_val_rel
-#  define catomic_compare_and_exchange_val_rel(mem, newval, oldval)	      \
-  catomic_compare_and_exchange_val_acq (mem, newval, oldval)		// 使用catomic_compare_and_exchange_val_acq定义
+#  define catomic_compare_and_exchange_val_rel(mem, newval, oldval)          \
+  catomic_compare_and_exchange_val_acq (mem, newval, oldval)        // 使用catomic_compare_and_exchange_val_acq定义
 # else
-#  define catomic_compare_and_exchange_val_rel(mem, newval, oldval)	      \
-  atomic_compare_and_exchange_val_rel (mem, newval, oldval)			// 使用atomic_compare_and_exchange_val_rel定义
+#  define catomic_compare_and_exchange_val_rel(mem, newval, oldval)          \
+  atomic_compare_and_exchange_val_rel (mem, newval, oldval)            // 使用atomic_compare_and_exchange_val_rel定义
 # endif
 #endif
 ```
@@ -131,14 +129,14 @@ release操作
 * 若定义了 `__arch_compare_and_exchange_bool_32_acq`，则使用`__atomic_bool_bysize (__arch_compare_and_exchange_bool,acq)`来定义
 
 * 否则只使用`atomic_compare_and_exchange_val_acq`函数，实现如下
-
+  
   ```c
   #  define atomic_compare_and_exchange_bool_acq(mem, newval, oldval) \
     ({ /* Cannot use __oldval here, because macros later in this file might     \
-  	call this macro with __oldval argument.	 */			      \
-       __typeof (oldval) __atg3_old = (oldval);				      \
-       atomic_compare_and_exchange_val_acq (mem, newval, __atg3_old)	      \
-         != __atg3_old;							      \
+      call this macro with __oldval argument.     */                  \
+       __typeof (oldval) __atg3_old = (oldval);                      \
+       atomic_compare_and_exchange_val_acq (mem, newval, __atg3_old)          \
+         != __atg3_old;                                  \
     })
   ```
 
@@ -151,18 +149,16 @@ release操作
 * 若定义了`__arch_c_compare_and_exchange_bool_32_acq`， 则使用`__atomic_bool_bysize (__arch_c_compare_and_exchange_bool,acq)`定义
 
 * 否则实现几乎跟`atomic_compare_and_exchange_bool_acq`一模一样
-
+  
   ```c
   #  define catomic_compare_and_exchange_bool_acq(mem, newval, oldval) \
     ({ /* Cannot use __oldval here, because macros later in this file might     \
-  	call this macro with __oldval argument.	 */			      \
-       __typeof (oldval) __atg4_old = (oldval);				      \
-       catomic_compare_and_exchange_val_acq (mem, newval, __atg4_old)	      \
-         != __atg4_old;							      \
+      call this macro with __oldval argument.     */                  \
+       __typeof (oldval) __atg4_old = (oldval);                      \
+       catomic_compare_and_exchange_val_acq (mem, newval, __atg4_old)          \
+         != __atg4_old;                                  \
     })
   ```
-
-
 
 ### 派生原子操作
 
@@ -176,24 +172,24 @@ release操作
 
 ```c
 #ifndef atomic_exchange_and_add_acq
-# ifdef atomic_exchange_and_add			// 这里是针对有单独定义atomic_exchange_and_add的情况（如编译器定义了或自定义）
+# ifdef atomic_exchange_and_add            // 这里是针对有单独定义atomic_exchange_and_add的情况（如编译器定义了或自定义）
 #  define atomic_exchange_and_add_acq(mem, value) \
   atomic_exchange_and_add (mem, value)
 # else
 #  define atomic_exchange_and_add_acq(mem, value) \
-  ({ __typeof (*(mem)) __atg6_oldval;					      \	// 声明类型为mem指向的对象，用来暂存旧值
-     __typeof (mem) __atg6_memp = (mem);				      \	// 一个中间变量，用来暂存mem
-     __typeof (*(mem)) __atg6_value = (value);				      \	// 暂存新值
-									      \
-     do									      \
-       __atg6_oldval = *__atg6_memp;					      \		// 循环体内将当前mem指向的值作为旧值存入
-     while (__builtin_expect						      \
-	    (atomic_compare_and_exchange_bool_acq (__atg6_memp,	\ // CAS操作，比较mem指向的值是否为旧值，若是则将运算结果赋给它
-						   __atg6_oldval	      \
-						   + __atg6_value,	      \
-						   __atg6_oldval), 0));	      \
-									      \
-     __atg6_oldval; })		// 返回值为旧值
+  ({ __typeof (*(mem)) __atg6_oldval;                          \    // 声明类型为mem指向的对象，用来暂存旧值
+     __typeof (mem) __atg6_memp = (mem);                      \    // 一个中间变量，用来暂存mem
+     __typeof (*(mem)) __atg6_value = (value);                      \    // 暂存新值
+                                          \
+     do                                          \
+       __atg6_oldval = *__atg6_memp;                          \        // 循环体内将当前mem指向的值作为旧值存入
+     while (__builtin_expect                              \
+        (atomic_compare_and_exchange_bool_acq (__atg6_memp,    \ // CAS操作，比较mem指向的值是否为旧值，若是则将运算结果赋给它
+                           __atg6_oldval          \
+                           + __atg6_value,          \
+                           __atg6_oldval), 0));          \
+                                          \
+     __atg6_oldval; })        // 返回值为旧值
 # endif
 #endif
 ```
@@ -211,9 +207,9 @@ release操作
 主要操作就是下面这段代码（去掉了一些不必要的修饰）
 
 ```c
-     do									      \
-       __atg5_oldval = *__atg5_memp;					      \
-     while (atomic_compare_and_exchange_bool_acq (__atg5_memp, __atg5_value,__atg5_oldval));	  
+     do                                          \
+       __atg5_oldval = *__atg5_memp;                          \
+     while (atomic_compare_and_exchange_bool_acq (__atg5_memp, __atg5_value,__atg5_oldval));      
 ```
 
 ##### atomic_exchange_rel
@@ -239,8 +235,8 @@ release操作
 主要操作
 
 ```c
-     do									      \
-       __atg6_oldval = *__atg6_memp;					      \
+     do                                          \
+       __atg6_oldval = *__atg6_memp;                          \
      while (atomic_compare_and_exchange_bool_acq (__atg6_memp, __atg6_oldval + __atg6_value, __atg6_oldval));
 ```
 
@@ -403,13 +399,13 @@ atomic_exchange_and_add (mem, value) == -value;
 主要操作如下
 
 ```c
-    do {								      \
-      __atg8_oldval = *__atg8_memp;					      \
-      if (__atg8_oldval >= __atg8_value)				      \
-	break;								      \
-    } while (__builtin_expect						      \
-	     (atomic_compare_and_exchange_bool_acq (__atg8_memp, __atg8_value,\
-						    __atg8_oldval), 0));  
+    do {                                      \
+      __atg8_oldval = *__atg8_memp;                          \
+      if (__atg8_oldval >= __atg8_value)                      \
+    break;                                      \
+    } while (__builtin_expect                              \
+         (atomic_compare_and_exchange_bool_acq (__atg8_memp, __atg8_value,\
+                            __atg8_oldval), 0));  
 ```
 
 ##### catomic_max
@@ -545,25 +541,25 @@ __atomic_fetch_xor
 没有定义的情况下：
 
 * atomic_load_relaxed
-
+  
   ```c
   #  define atomic_load_relaxed(mem) \
-     ({ __typeof ((__typeof (*(mem))) *(mem)) __atg100_val;		      \
-     __asm ("" : "=r" (__atg100_val) : "0" (*(mem)));			      \
+     ({ __typeof ((__typeof (*(mem))) *(mem)) __atg100_val;              \
+     __asm ("" : "=r" (__atg100_val) : "0" (*(mem)));                  \
      __atg100_val; })
   ```
-
+  
   这条内联汇编将一个mem指向的内容传给一个寄存器，然后返回寄存器的值
 
 * atomic_load_acquire
-
+  
   ```c
   #  define atomic_load_acquire(mem) \
-     ({ __typeof (*(mem)) __atg101_val = atomic_load_relaxed (mem);	      \
-     atomic_thread_fence_acquire ();					      \
+     ({ __typeof (*(mem)) __atg101_val = atomic_load_relaxed (mem);          \
+     atomic_thread_fence_acquire ();                          \
      __atg101_val; })
   ```
-
+  
   在atomic_load_relaxed后加了个acquire fence
 
 ##### __atomic_store_n相关
@@ -574,23 +570,23 @@ __atomic_fetch_xor
 没有定义的情况下：
 
 * atomic_store_relaxed
-
+  
   ```c
   #  define atomic_store_relaxed(mem, val) do { *(mem) = (val); } while (0)
   ```
-
+  
   注意这里直接用了条C的赋值语句，可能非原子
 
 * atomic_store_release
-
+  
   ```c
   #  define atomic_store_release(mem, val) \
-     do {									      \
-       atomic_thread_fence_release ();					      \
-       atomic_store_relaxed ((mem), (val));				      \
+     do {                                          \
+       atomic_thread_fence_release ();                          \
+       atomic_store_relaxed ((mem), (val));                      \
      } while (0)
   ```
-
+  
   在atomic_store_relaxed前加了个release fence
 
 ##### __atomic_compare_exchange_n相关
@@ -602,31 +598,31 @@ __atomic_fetch_xor
 没有定义的情况下：
 
 * atomic_compare_exchange_weak_relaxed
-
+  
   直接调用了下述的atomic_compare_exchange_weak_acquire
 
 * atomic_compare_exchange_weak_acquire
-
+  
   ```c
   #  define atomic_compare_exchange_weak_acquire(mem, expected, desired) \
-     ({ typeof (*(expected)) __atg102_expected = *(expected);		      \
-     *(expected) =							      \
+     ({ typeof (*(expected)) __atg102_expected = *(expected);              \
+     *(expected) =                                  \
        atomic_compare_and_exchange_val_acq ((mem), (desired), *(expected));     \
      *(expected) == __atg102_expected; })
   ```
-
+  
   使用先前定义的[atomic_compare_and_exchange_val_acq](#atomic_compare_and_exchange_val_acq)实现
 
 * atomic_compare_exchange_weak_release
-
+  
   ```c
   #  define atomic_compare_exchange_weak_release(mem, expected, desired) \
-     ({ typeof (*(expected)) __atg103_expected = *(expected);		      \
-     *(expected) =							      \
+     ({ typeof (*(expected)) __atg103_expected = *(expected);              \
+     *(expected) =                                  \
        atomic_compare_and_exchange_val_rel ((mem), (desired), *(expected));     \
      *(expected) == __atg103_expected; })
   ```
-
+  
   使用先前定义的[atomic_compare_and_exchange_val_rel](#atomic_compare_and_exchange_val_rel)实现
 
 ##### __atomic_exchange_n相关
@@ -638,15 +634,15 @@ __atomic_fetch_xor
 没有定义的情况下：
 
 * atomic_exchange_relaxed
-
+  
   直接调用先前定义的[atomic_exchange_acq](#atomic_exchange_acq)
 
 * atomic_exchange_acquire
-
+  
   同上
 
 * atomic_exchange_release
-
+  
   直接调用先前定义的[atomic_exchange_rel](#atomic_exchange_rel)
 
 ##### __atomic_fetch_add相关
@@ -659,25 +655,25 @@ __atomic_fetch_xor
 没有定义的情况下：
 
 * atomic_fetch_add_relaxed
-
+  
   直接调用[atomic_fetch_add_acquire](#atomic_fetch_add_acquire)
 
 * atomic_fetch_add_acquire
-
+  
   直接调用[atomic_exchange_and_add_acq](#atomic_exchange_and_add_acq)，注意与上面的区别，一个是fetch_add，一个是exchange_and_add，下同
 
 * atomic_fetch_add_release
-
+  
   直接调用[atomic_exchange_and_add_rel](#atomic_exchange_and_add_rel)
 
 * atomic_fetch_add_acq_rel
-
+  
   ```c
   #  define atomic_fetch_add_acq_rel(mem, operand) \
-     ({ atomic_thread_fence_release ();					      \
+     ({ atomic_thread_fence_release ();                          \
      atomic_exchange_and_add_acq ((mem), (operand)); })
   ```
-
+  
   在read-modify-write操作前添加了一个fence
 
 ##### __atomic_fetch_and相关
@@ -689,21 +685,21 @@ __atomic_fetch_xor
 没有定义的情况下：
 
 * atomic_fetch_and_relaxed
-
+  
   直接调用下述atomic_fetch_and_acquire
 
 * atomic_fetch_and_acquire
-
+  
   直接调用[atomic_and_val](#atomic_and_val)
 
 * atomic_fetch_and_release
-
+  
   ```c
   #  define atomic_fetch_and_release(mem, operand) \
-     ({ atomic_thread_fence_release ();					      \
+     ({ atomic_thread_fence_release ();                          \
      atomic_and_val ((mem), (operand)); })
   ```
-
+  
   与其他release操作类似，添加了一个fence
 
 ##### __atomic_fetch_or相关
@@ -715,21 +711,21 @@ __atomic_fetch_xor
 没有定义的情况下：
 
 * atomic_fetch_or_relaxed
-
+  
   直接调用下述atomic_fetch_or_acquire
 
 * atomic_fetch_or_acquire
-
+  
   直接调用[atomic_or_val](#atomic_or_val)
 
 * atomic_fetch_or_release
-
+  
   ```c
   #  define atomic_fetch_or_release(mem, operand) \
-     ({ atomic_thread_fence_release ();					      \
+     ({ atomic_thread_fence_release ();                          \
      atomic_fetch_or_acquire ((mem), (operand)); })
   ```
-
+  
   与其他release操作类似，添加了一个fence
 
 ##### __atomic_fetch_xor相关
@@ -739,23 +735,23 @@ __atomic_fetch_xor
 没有定义的情况下：
 
 * atomic_fetch_xor_release
-
+  
   ```c
   # define atomic_fetch_xor_release(mem, operand) \
-    ({ __typeof (mem) __atg104_memp = (mem);				      \
-       __typeof (*(mem)) __atg104_expected = (*__atg104_memp);		      \
-       __typeof (*(mem)) __atg104_desired;				      \
-       __typeof (*(mem)) __atg104_op = (operand);				      \
-  									      \
-       do									      \
-         __atg104_desired = __atg104_expected ^ __atg104_op;		      \
-       while (__glibc_unlikely						      \
-  	    (atomic_compare_exchange_weak_release (			      \
-  	       __atg104_memp, &__atg104_expected, __atg104_desired)	      \
-  	     == 0));							      \
+    ({ __typeof (mem) __atg104_memp = (mem);                      \
+       __typeof (*(mem)) __atg104_expected = (*__atg104_memp);              \
+       __typeof (*(mem)) __atg104_desired;                      \
+       __typeof (*(mem)) __atg104_op = (operand);                      \
+                                            \
+       do                                          \
+         __atg104_desired = __atg104_expected ^ __atg104_op;              \
+       while (__glibc_unlikely                              \
+          (atomic_compare_exchange_weak_release (                  \
+             __atg104_memp, &__atg104_expected, __atg104_desired)          \
+           == 0));                                  \
        __atg104_expected; })
   ```
-
+  
   这段代码其实与[派生原子操作的代码模板](#派生原子操作的代码模板)描述一致，因此不赘述
 
 ### 外部引用与依赖
@@ -777,7 +773,7 @@ atomic.h主要提供了对原语操作的高层封装，从原语派生出一系
 * `__arch_compare_and_exchange_val_32_acq`
 * `__arch_compare_and_exchange_val_64_acq`
 
-#####  catomic_compare_and_exchange_val_acq
+##### catomic_compare_and_exchange_val_acq
 
 在`catomic_compare_and_exchange_val_acq`中若定义了`__arch_c_compare_and_exchange_val_32_acq`标志，则会从外部引入下列函数。否则直接引用`atomic_compare_and_exchange_val_acq`
 
@@ -786,7 +782,7 @@ atomic.h主要提供了对原语操作的高层封装，从原语派生出一系
 * `__arch_c_compare_and_exchange_val_32_acq`
 * `__arch_c_compare_and_exchange_val_64_acq`
 
-#####  atomic_compare_and_exchange_bool_acq
+##### atomic_compare_and_exchange_bool_acq
 
 对于bool的acq，也与上面类似，因此可能从外部引入下列4个函数
 
@@ -859,45 +855,45 @@ glibc是这样实现屏障的
 ##### atomic load
 
 * atomic_load_relaxed
-
+  
   ```c
   #  define atomic_load_relaxed(mem) \
-     ({ __typeof ((__typeof (*(mem))) *(mem)) __atg100_val;		      \
-     __asm ("" : "=r" (__atg100_val) : "0" (*(mem)));			      \
+     ({ __typeof ((__typeof (*(mem))) *(mem)) __atg100_val;              \
+     __asm ("" : "=r" (__atg100_val) : "0" (*(mem)));                  \
      __atg100_val; })
   ```
-
+  
   使用内联汇编的方式实现，但实际只指定了Input Operand和Ouput Operand，内联汇编定义中没有具体的其他指令
 
 * atomic_load_acquire
-
+  
   ```c
   #  define atomic_load_acquire(mem) \
-     ({ __typeof (*(mem)) __atg101_val = atomic_load_relaxed (mem);	      \
-     atomic_thread_fence_acquire ();					      \
+     ({ __typeof (*(mem)) __atg101_val = atomic_load_relaxed (mem);          \
+     atomic_thread_fence_acquire ();                          \
      __atg101_val; })
   ```
-
+  
   load acquire操作在atomic_load之后添加了一个fence，这里可以对比store release操作
 
 ##### atomic store
 
 * atomic_store_relaxed
-
+  
   ```c
   #  define atomic_store_relaxed(mem, val) do { *(mem) = (val); } while (0)
   ```
 
 * atomic_store_release
-
+  
   ```c
   #  define atomic_store_release(mem, val) \
-     do {									      \
-       atomic_thread_fence_release ();					      \
-       atomic_store_relaxed ((mem), (val));				      \
+     do {                                          \
+       atomic_thread_fence_release ();                          \
+       atomic_store_relaxed ((mem), (val));                      \
      } while (0)
   ```
-
+  
   store release操作在atomic store前添加了一个fence，可以对照上面的load acquire操作
 
 ### 可能存在的bug
@@ -905,21 +901,20 @@ glibc是这样实现屏障的
 ##### atomic store
 
 * atomic_store_relaxed
-
+  
   ```c
   /* XXX Use inline asm here?  */
   #  define atomic_store_relaxed(mem, val) do { *(mem) = (val); } while (0)
   ```
 
 * atomic_store_release
-
+  
   ```c
   #  define atomic_store_release(mem, val) \
-     do {									      \
-       atomic_thread_fence_release ();					      \
-       atomic_store_relaxed ((mem), (val));				      \
+     do {                                          \
+       atomic_thread_fence_release ();                          \
+       atomic_store_relaxed ((mem), (val));                      \
      } while (0)
   ```
 
 这里注释也指出了问题，store这个操作应该是原子的，但这里的写法可能生成非原子的代码
-

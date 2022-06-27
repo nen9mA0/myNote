@@ -1,7 +1,5 @@
 ## Overview
 
-
-
 ## 代码解析
 
 ### 标志位相关
@@ -34,17 +32,9 @@
 #define set_fastchunks(M) catomic_and(&(M)->flags, ~FASTCHUNKS_BIT)
 ```
 
-
-
 ##### NONCONTIGUOUS_BIT
 
-
-
 ##### ARENA_CORRUPTION_BIT
-
-
-
-
 
 ### 一些重要宏
 
@@ -52,7 +42,7 @@
 
 ##### 参数
 
-######  DEFAULT_MMAP_THRESHOLD_MIN
+###### DEFAULT_MMAP_THRESHOLD_MIN
 
 <span id="DEFAULT_MMAP_THRESHOLD_MIN"/>
 
@@ -94,8 +84,6 @@
 #define NARENAS_FROM_NCORES(n) ((n) * (sizeof(long) == 4 ? 2 : 8))
 ```
 
-
-
 #### 原子操作
 
 ##### catomic_compare_and_exchange_bool_acq
@@ -123,7 +111,7 @@ catomic_compare_and_exchange_bool_acq(mem, newval, oldval);
 注意这个算法仅对size为2^n的适用
 
 ```c
-#define ALIGN_DOWN(base, size)	((base) & -((__typeof__ (base)) (size)))
+#define ALIGN_DOWN(base, size)    ((base) & -((__typeof__ (base)) (size)))
 ```
 
 算法原理很简单，假设size为2^n，则将低n位清零。这里`__typeof__ (base)`主要用于将size强制类型转换成与base相同的类型。-size其实等价于`~size+1`，或`~(size-1)`，实际上和常用的将size转化为掩码的算法相同（如MALLOC_ALIGNMENT转化为MALLOC_ALIGN_MASK的方法）
@@ -135,10 +123,8 @@ catomic_compare_and_exchange_bool_acq(mem, newval, oldval);
 注意这个算法仅对size为2^n的适用
 
 ```c
-#define ALIGN_UP(base, size)	ALIGN_DOWN ((base) + (size) - 1, (size))
+#define ALIGN_UP(base, size)    ALIGN_DOWN ((base) + (size) - 1, (size))
 ```
-
-
 
 #### request2size
 
@@ -164,8 +150,6 @@ catomic_compare_and_exchange_bool_acq(mem, newval, oldval);
   }                                   \
   (sz) = request2size(req);
 ```
-
-
 
 #### arena相关
 
@@ -299,7 +283,7 @@ catomic_compare_and_exchange_bool_acq(mem, newval, oldval);
 
 ##### 参数
 
-######  MALLOC_ALIGN_MASK
+###### MALLOC_ALIGN_MASK
 
 ```c
 #define MALLOC_ALIGN_MASK (MALLOC_ALIGNMENT - 1)
@@ -321,8 +305,6 @@ MINSIZE是对齐后的最小chunk size
 #define MINSIZE  \
   (unsigned long)(((MIN_CHUNK_SIZE+MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK))
 ```
-
-
 
 ##### 函数
 
@@ -391,7 +373,7 @@ p为当前chunk指针，返回前一个chunk指针。p-前一个chunksize为prev
 #define chunksize(p) (chunksize_nomask(p) & ~(SIZE_BITS))
 ```
 
-######  set_inuse_bit_at_offset
+###### set_inuse_bit_at_offset
 
 设置下一个chunk块的PREV_INUSE位
 
@@ -399,8 +381,6 @@ p为当前chunk指针，返回前一个chunk指针。p-前一个chunksize为prev
 #define set_inuse_bit_at_offset(p, s) \
   (((mchunkptr)(((char *)(p)) + (s)))->mchunk_size |= PREV_INUSE)
 ```
-
-
 
 ##### REQUEST_OUT_OF_RANGE
 
@@ -421,33 +401,33 @@ unlink是一个宏，用于从bin上取下一块chunk。在从双链表中取出
 ```c
 #define unlink(AV, P, BK, FD) {                                            \
     if (__builtin_expect (chunksize(P) != prev_size (next_chunk(P)), 0))      \
-      malloc_printerr ("corrupted size vs. prev_size");			      \
-    FD = P->fd;								      \
-    BK = P->bk;								      \
-    if (__builtin_expect (FD->bk != P || BK->fd != P, 0))		      \
-      malloc_printerr ("corrupted double-linked list");			      \
-    else {								      \
-        FD->bk = BK;							      \
-        BK->fd = FD;							      \
+      malloc_printerr ("corrupted size vs. prev_size");                  \
+    FD = P->fd;                                      \
+    BK = P->bk;                                      \
+    if (__builtin_expect (FD->bk != P || BK->fd != P, 0))              \
+      malloc_printerr ("corrupted double-linked list");                  \
+    else {                                      \
+        FD->bk = BK;                                  \
+        BK->fd = FD;                                  \
         if (!in_smallbin_range (chunksize_nomask (P)) && __builtin_expect (P->fd_nextsize != NULL, 0))
         {                                                             \
-	        if (__builtin_expect (P->fd_nextsize->bk_nextsize != P, 0) || __builtin_expect (P->bk_nextsize->fd_nextsize != P, 0))    \
-	          malloc_printerr ("corrupted double-linked list (not small)");   \
-          if (FD->fd_nextsize == NULL) {				            \
-            if (P->fd_nextsize == P)				                \
-                FD->fd_nextsize = FD->bk_nextsize = FD;		      \
-              else {							      \
-                  FD->fd_nextsize = P->fd_nextsize;			      \
-                  FD->bk_nextsize = P->bk_nextsize;			      \
-                  P->fd_nextsize->bk_nextsize = FD;			      \
-                  P->bk_nextsize->fd_nextsize = FD;			      \
-                }							      \
-            } else {							      \
-              P->fd_nextsize->bk_nextsize = P->bk_nextsize;		      \
-              P->bk_nextsize->fd_nextsize = P->fd_nextsize;		      \
-            }								      \
-          }								      \
-      }									      \
+            if (__builtin_expect (P->fd_nextsize->bk_nextsize != P, 0) || __builtin_expect (P->bk_nextsize->fd_nextsize != P, 0))    \
+              malloc_printerr ("corrupted double-linked list (not small)");   \
+          if (FD->fd_nextsize == NULL) {                            \
+            if (P->fd_nextsize == P)                                \
+                FD->fd_nextsize = FD->bk_nextsize = FD;              \
+              else {                                  \
+                  FD->fd_nextsize = P->fd_nextsize;                  \
+                  FD->bk_nextsize = P->bk_nextsize;                  \
+                  P->fd_nextsize->bk_nextsize = FD;                  \
+                  P->bk_nextsize->fd_nextsize = FD;                  \
+                }                                  \
+            } else {                                  \
+              P->fd_nextsize->bk_nextsize = P->bk_nextsize;              \
+              P->bk_nextsize->fd_nextsize = P->fd_nextsize;              \
+            }                                      \
+          }                                      \
+      }                                          \
 }
 ```
 
@@ -488,8 +468,6 @@ unlink是一个宏，用于从bin上取下一块chunk。在从双链表中取出
 mchunkptr pp = *fb;
 REMOVE_FB(fb, victim, pp);
 ```
-
-
 
 #### bin相关
 
@@ -538,8 +516,6 @@ largebin的最小大小，也是smallbin的最大大小
 ```c
 #define MIN_LARGE_SIZE ((NSMALLBINS - SMALLBIN_CORRECTION) * SMALLBIN_WIDTH)
 ```
-
-
 
 ##### bin范围相关
 
@@ -726,10 +702,6 @@ i为bin的下标，这里计算bin在一个block内的偏移。低地址对应�
 #define get_binmap(m, i) ((m)->binmap[idx2block(i)] & idx2bit(i))
 ```
 
-
-
-
-
 #### 有趣的写法
 
 ##### bin_at写法
@@ -778,10 +750,10 @@ typedef struct malloc_chunk *mbinptr;
 ```c
 typedef struct _heap_info
 {
-  mstate ar_ptr; /* Arena for this heap. */			// 指向当前arena的malloc_state
-  struct _heap_info *prev; /* Previous heap. */		// 指向前一个arena的heap_info
-    											//（实际上指向的就是前一个arena头）
-  size_t size;   /* Current size in bytes. */		// 保存整个arena大小
+  mstate ar_ptr; /* Arena for this heap. */            // 指向当前arena的malloc_state
+  struct _heap_info *prev; /* Previous heap. */        // 指向前一个arena的heap_info
+                                                //（实际上指向的就是前一个arena头）
+  size_t size;   /* Current size in bytes. */        // 保存整个arena大小
   size_t mprotect_size; /* Size in bytes that has been mprotected
                            PROT_READ|PROT_WRITE.  */
   /* Make sure the following data is properly aligned, particularly
@@ -836,16 +808,16 @@ struct malloc_state
   int have_fastchunks;
 
   /* Fastbins */
-  mfastbinptr fastbinsY[NFASTBINS];		// fastbin指针
+  mfastbinptr fastbinsY[NFASTBINS];        // fastbin指针
 
   /* Base of the topmost chunk -- not otherwise kept in a bin */
-  mchunkptr top;						// top chunk 指针
+  mchunkptr top;                        // top chunk 指针
 
   /* The remainder from the most recent split of a small request */
   mchunkptr last_remainder;
 
   /* Normal bins packed as described above */
-  mchunkptr bins[NBINS * 2 - 2];		//NBINS=128
+  mchunkptr bins[NBINS * 2 - 2];        //NBINS=128
 
   /* Bitmap of bins */
   unsigned int binmap[BINMAPSIZE];
@@ -895,8 +867,6 @@ struct malloc_state
 /* Mark a chunk as not being on the main arena.  */
 #define set_non_main_arena(p) ((p)->mchunk_size |= NON_MAIN_ARENA)
 ```
-
-
 
 #### 锁
 
@@ -977,8 +947,6 @@ static char *aligned_heap_area;
 int __malloc_initialized = -1;
 ```
 
-
-
 #### 顶层函数
 
 ##### ptmalloc_init
@@ -1019,7 +987,7 @@ static mstate arena_get_retry(mstate ar_ptr, size_t bytes);
 
 #### 底层函数：arena相关
 
-#####arena_get2
+##### arena_get2
 
 用于获取一个新的arena，根据条件可能通过`get_free_list / _int_new_arena / reused_arena`三种方法获取
 
@@ -1044,8 +1012,6 @@ static mstate internal_function arena_get2(size_t size, mstate avoid_arena);
       * 若返回NULL，说明创建arena失败，使用原子操作[catomic_decrement](#catomic_decrement)对narenas减一
     * 若否，说明当前arena过多，不允许继续创建新的arena
       * 调用[reused_arena](#reused_arena)获取arena
-
-
 
 ##### _int_new_arena
 
@@ -1146,8 +1112,6 @@ static void remove_from_free_list(mstate arena);
 
 * 循环遍历free_list，若当前指向的arena与arena参数相同，则将该arena从链表中取出（即修改前一个链表的next指针为该arena的next），注意被取出的arena的next指针没有被修改
 
-
-
 #### 底层函数：heap相关
 
 ##### new_heap
@@ -1159,7 +1123,7 @@ static heap_info *internal_function new_heap(size_t size, size_t top_pad);
 ```
 
 * 判断size+top_pad大小
-
+  
   * 若在HEAP_MIN_SIZE到HEAP_MAX_SIZE之间，则分配大小即为size+top_pad
   * 若小于HEAP_MIN_SIZE则设为HEAP_MIN_SIZE
   * 若大于HEAP_MAX_SIZE直接返回
@@ -1167,25 +1131,25 @@ static heap_info *internal_function new_heap(size_t size, size_t top_pad);
 * size+top_pad按照pagesize值向上取倍数（[ALIGN_UP](#ALIGN_UP)）
 
 * 下面使用mmap创建空间，有三种方式。这些方式下面还会进一步说明。三种方式mmap后都会检查与HEAP_MAX_SIZE的对齐，若不对齐则释放
-
+  
   * 在[aligned_heap_area](#aligned_heap_area)不为NULL时
-
+    
     ```c
     p2 = (char *)MMAP(aligned_heap_area, HEAP_MAX_SIZE, PROT_NONE, MAP_NORESERVE);
     ```
-
+  
   * 一般情况下使用这个
-
+    
     ```c
     p1 = (char *)MMAP(0, HEAP_MAX_SIZE << 1, PROT_NONE, MAP_NORESERVE);
     ```
-
+    
     注意这里分配了`HEAP_MAX_SIZE*2`大小的空间，并且如果ul为0，会将**aligned_heap_area**的值赋为`p1+HEAP_MAX_SIZE`（这里见下面的进一步说明）。即下次调用new_heap的时候会使用第一种方式mmap，并且新创建的heap块在上一次创建的heap块的上方（高地址）。
-
+    
     调用完成后会把第二块HEAP_MAX_SIZE大小的块munmap掉。
-
+  
   * 前两种方法失效的情况下使用这个
-
+    
     ```c
     p2 = (char *)MMAP(0, HEAP_MAX_SIZE, PROT_NONE, MAP_NORESERVE);
     ```
@@ -1193,7 +1157,7 @@ static heap_info *internal_function new_heap(size_t size, size_t top_pad);
 * 使用mprotect改变页面属性为RW，注意改变的大小为size+top_pad，而不是mmap出来的HEAP_MAX_SIZE
 
 * 将mmap的空间的开头作为[heap_info](#heap_info)结构体，并赋值
-
+  
   * heap_info.size为size+top_pad
   * heap_info.mprotect_size为size+top_pad
 
@@ -1205,7 +1169,7 @@ static heap_info *internal_function new_heap(size_t size, size_t top_pad);
 
 因为每次分配的大小是HEAP_MAX_SIZE，并且要求地址与[HEAP_MAX_SIZE](#HEAP_MAX_SIZE)（64位系统默认是64MB，32位系统默认是1MB）对齐，而mmap分配的地址只保证是pagesize对齐的，因此为了满足HEAP_MAX_SIZE对齐的要求，就申请2*HEAP_MAX_SIZE的大小，这样空间内一定有HEAP_MAX_SIZE大小的满足对齐要求的空间。此后将没有用到的其余空间unmap掉。
 
-上述这种做法的问题在于，可能造成一些地址碎片，假设mmap分配的地址为0x00601000~0x00801000（32位，大小2MB），则要符合HEAP_MAX_SIZE对齐（1MB对齐），则使用的地址为0x00700000~0x00800000，则会产生两片碎片（0x00601000~0x0060ffff和0x00800000~0x00801000）
+上述这种做法的问题在于，可能造成一些地址碎片，假设mmap分配的地址为 `0x00601000~0x00801000` （32位，大小2MB），则要符合HEAP_MAX_SIZE对齐（1MB对齐），则使用的地址为 `0x00700000~0x00800000` ，则会产生两片碎片（ `0x00601000~0x0060ffff` 和`0x00800000~0x00801000` ）
 
 这里解决这个问题的方法就是引入[aligned_heap_area](#aligned_heap_area)，做法是在获取一个对齐的地址p后，在aligned_heap_area中保存p+HEAP_MAX_SIZE，下次分配的时候首先尝试这个地址。但是这里的实现在只有当mmap返回的地址符合HEAP_MAX_SIZE对齐时才会触发这个机制，疑似有[bug](#arena_bug_1)
 
@@ -1240,8 +1204,6 @@ static int shrink_heap(heap_info *h, long diff);
 
 ##### heap_trim
 
-
-
 ```c
 static int internal_function heap_trim(heap_info *heap, size_t pad);
 ```
@@ -1249,8 +1211,6 @@ static int internal_function heap_trim(heap_info *heap, size_t pad);
 * 使用[top](#top)宏获取heap指向的arena的top_chunk
 * 判断top chunk是否等于`heap+sizeof(heap_info)`
   * 
-
-
 
 #### 其他函数
 
@@ -1271,11 +1231,11 @@ static inline bool check_may_shrink_heap (void);
 ```
 
 * 检查overcommit标志
-
+  
   若已经获取过该标志则直接返回
 
 * 获取overcommit标志：
-
+  
   检查是否定义了__libc_enable_secure符号，若没定义，打开`/proc/sys/vm/overcommit_memory`读取该标志
 
 #### atfork support
@@ -1334,7 +1294,7 @@ void internal_function __malloc_fork_unlock_child(void);
 
 ```c
 char pad[-6 * SIZE_SZ & MALLOC_ALIGN_MASK];  // 其中MALLOC_ALIGN_MASK为MALLOC_ALIGNMENT-1
-										//  SIZE_SZ=sizeof(size_t)
+                                        //  SIZE_SZ=sizeof(size_t)
 ```
 
 注释中说这段代码是为了保证`sizeof(heap_info)+2*sizeof(size_t)`长度整除`MALLOC_ALIGNMENT`
@@ -1382,17 +1342,17 @@ struct malloc_par
   INTERNAL_SIZE_T arena_max;
 
   /* Memory map support */
-  int n_mmaps;			// 记录当前使用mmap分配的chunk个数
+  int n_mmaps;            // 记录当前使用mmap分配的chunk个数
   int n_mmaps_max;
-  int max_n_mmaps;		// 记录n_mmaps的最大值
+  int max_n_mmaps;        // 记录n_mmaps的最大值
   /* the mmap_threshold is dynamic, until the user sets
      it manually, at which point we need to disable any
      dynamic behavior. */
   int no_dyn_threshold;
 
   /* Statistics */
-  INTERNAL_SIZE_T mmapped_mem;		// mmap分配的内存大小
-  INTERNAL_SIZE_T max_mmapped_mem;	// 记录mmap分配的内存最大值
+  INTERNAL_SIZE_T mmapped_mem;        // mmap分配的内存大小
+  INTERNAL_SIZE_T max_mmapped_mem;    // 记录mmap分配的内存最大值
 
   /* First address handed out by MORECORE/sbrk.  */
   char *sbrk_base;
@@ -1410,8 +1370,6 @@ struct malloc_par
 };
 ```
 
-
-
 #### 全局变量
 
 ##### mp_
@@ -1421,10 +1379,10 @@ struct malloc_par
 ```c
 static struct malloc_par mp_ =
 {
-  .top_pad = DEFAULT_TOP_PAD,			//default: 0
-  .n_mmaps_max = DEFAULT_MMAP_MAX,		//default: 65536
-  .mmap_threshold = DEFAULT_MMAP_THRESHOLD,	//default: 128*1024
-  .trim_threshold = DEFAULT_TRIM_THRESHOLD,	//default: 128*1024
+  .top_pad = DEFAULT_TOP_PAD,            //default: 0
+  .n_mmaps_max = DEFAULT_MMAP_MAX,        //default: 65536
+  .mmap_threshold = DEFAULT_MMAP_THRESHOLD,    //default: 128*1024
+  .trim_threshold = DEFAULT_TRIM_THRESHOLD,    //default: 128*1024
 #define NARENAS_FROM_NCORES(n) ((n) * (sizeof (long) == 4 ? 2 : 8))
   .arena_test = NARENAS_FROM_NCORES (1)
 #if USE_TCACHE
@@ -1444,8 +1402,6 @@ fastbin的最大值
 ```c
 static INTERNAL_SIZE_T global_max_fast;
 ```
-
-
 
 #### 顶层函数
 
@@ -1489,10 +1445,6 @@ void *__libc_malloc(size_t bytes);
 * arena_get2
   * `_int_new_arena`两次调用`new_heap`都失败，注意这里代码写的是return 0，可能出错（虽然目前所有编译器下NULL==0）
   * `reuse_arena`中没有在arena链表上找到合适的arena
-
-
-
-
 
 #### 主要函数
 
@@ -1622,15 +1574,13 @@ static void *_int_malloc(mstate av, size_t bytes);
 * 设置请求chunk的大小、PREV_INUSE，并根据情况设置MAIN_ARENA位（[set_head](#set_head)）
 * 设置切分出的chunk的大小和PREV_INUSE，更新下一个chunk的prev_size（[set_head](#set_head)  [set_foot](#set_foot)）
 
-
-
-#####_int_free
+##### _int_free
 
 free的底层函数，注意这里的have_lock参数用于标识当前的函数调用中允不允许获取arena锁
 
- ```c
+```c
 static void _int_free(mstate av, mchunkptr p, int have_lock);
- ```
+```
 
 * 进行一些简单的检查，若不满足则报错
   * 是否对齐
@@ -1656,8 +1606,6 @@ static void _int_free(mstate av, mchunkptr p, int have_lock);
 * 情况三：chunk是由mmap分配的
   * 调用[munmap_chunk](#munmap_chunk)
 
-
-
 ##### malloc_consolidate
 
 有两个功能，其中合并碎片的功能只有在当前malloc_state被初始化后才可用：
@@ -1674,51 +1622,49 @@ static void malloc_consolidate(mstate av);
 通过[get_max_fast](#get_max_fast)是否为0判断malloc_state是否初始化过
 
 * 不为0，说明初始化过，则进行下面的操作
-
+  
   * 遍历fastbin数组，对每个fastbin执行下列操作
-
+    
     * 调用[atomic_exchange_acq](#atomic_exchange_acq)，将fastbin数组的对应指针置为NULL
-
+    
     * 若该数组项先前的指针不为NULL，即说明该fastbin含有chunk
-
+      
       则遍历chunk，并进行下列操作
-
+      
       * check相关：
-
+        
         * [check_inuse_chunk](#check_inuse_chunk)
-
+      
       * 检查当前chunk的上一个chunk是否在使用（[prev_inuse](#prev_inuse)）
-
+        
         * 若没有在使用，则使用[unlink](#unlink)将其从链表上取出（这里的链表可以是各种bin的，因为无法保证fastbin块的相邻chunk处于哪个bin）
         * 将合并的起始指针调整到上一个chunk处，并增加合并大小（这一步即把上一个chunk合并）
-
+      
       * 检查当前chunk的下一个chunk是否为top chunk
-
+        
         * 若不是top chunk
-
+          
           * 检查下一个chunk是否inuse（这里需要到下一个chunk的再下一个chunk检查PREV_INUSE标志位）
-
+            
             * 若inuse，则简单地将其PREV_INUSE位清零（因为下一个chunk的上一个chunk，即当前chunk已经不再inuse）
-
-              ​	TODO：为什么在chunk链入fastbin时没有清零下一个chunk的PREV_INUSE
-
+              
+              ​    TODO：为什么在chunk链入fastbin时没有清零下一个chunk的PREV_INUSE
+            
             * 否则，将下一个chunk [unlink](#unlink)，并增加合并大小
-
+          
           * 设置合并得到的chunk，包括判断是否在largebin范围内，若是清零nextsize，还有设置chunk大小（[set_head](#set_head) [set_foot](#set_foot)）
-
+          
           * 并将其链入unsorted chunk
-
+        
         * 若是top chunk
-
+          
           * 直接将当前chunk与top chunk合并，并设置新的大小和新的top chunk地址为当前指针
 
 * 为0，说明没初始化过（TODO：什么情况下会需要在这里初始化？）
-
+  
   * 调用[malloc_init_state](#malloc_init_state)初始化
   * check相关：
     * [check_malloc_state](#check_malloc_state)
-
-
 
 ##### malloc_init_state
 
@@ -1747,30 +1693,30 @@ static void *sysmalloc(INTERNAL_SIZE_T nb, mstate av);
 ###### 描述
 
 * 如果av为空，或`nb > mp_.mmap_threshold && mp_.n_mmaps < mp_.n_mmaps_max`，则直接使用mmap
-
+  
   * 首先将请求的大小nb转化为页面大小，注意这里使用mmap分配chunk，比普通的chunk多了一个SIZE_SZ大小的长度，因为普通chunk在分配后，后一个chunk的prev_size域可以被使用，而mmap分配的chunk没有连续的下一个chunk，因此需要多一个SIZE_SZ分配下一个chunk的prev_size
-
+    
     * 由于上述原因，转化调用的是`ALIGN_UP(nb + SIZE_SZ, pagesize)`，此外若自定义了MALLOC_ALIGNMENT，调用`ALIGN_UP(nb + SIZE_SZ + MALLOC_ALIGN_MASK, pagesize)`
-
+  
   * 调用mmap前有一个有趣的处理，就是判断转化后的大小是否大于nb。这应该是为了防止整数溢出，具体见 [有趣的写法](#interesting_sysmalloc)
-
+  
   * 使用mmap时，若分配成功
-
+    
     * 首先会检查chunk对齐，并调整chunk头到对齐的内存
     
     * 分配结束后malloc_chunk用途如下
-    
+      
       ```c
       struct malloc_chunk {
       
         INTERNAL_SIZE_T      mchunk_prev_size;  
-          				//若当前mmap后返回的内存不是MALLOC_ALIGNMENT对齐的
-          				//即chunk2mem(mm)不是MALLOC_ALIGNMENT对齐的
-          				//则需要调整为MALLOC_ALIGNMENT对齐，方法为不使用前n字节
-          				//mchunk_prev_size保存着n。否则为0
+                          //若当前mmap后返回的内存不是MALLOC_ALIGNMENT对齐的
+                          //即chunk2mem(mm)不是MALLOC_ALIGNMENT对齐的
+                          //则需要调整为MALLOC_ALIGNMENT对齐，方法为不使用前n字节
+                          //mchunk_prev_size保存着n。否则为0
         INTERNAL_SIZE_T      mchunk_size;
-          				//保存除去不使用的字节外剩下的大小，这个大小是pagesize对齐的
-          				//这里的IS_MAPPED位被设置
+                          //保存除去不使用的字节外剩下的大小，这个大小是pagesize对齐的
+                          //这里的IS_MAPPED位被设置
       
         //---------------------------------------------------------------------------
           //下面直接是用户使用的空间，malloc返回的地址即fd成员的地址
@@ -1784,7 +1730,7 @@ static void *sysmalloc(INTERNAL_SIZE_T nb, mstate av);
       ```
     
     * 更新[mp_](#mp_)的下列成员，这里是使用原子操作来更新值的
-    
+      
       * n_mmaps  当前mmap个数加一
       * max_n_mmaps  若当前mmap个数大于最大值，则覆盖
       * mmaped_mem  当前通过mmap分配的内存大小增加
@@ -1795,7 +1741,7 @@ static void *sysmalloc(INTERNAL_SIZE_T nb, mstate av);
 * 若av为空，则没有arena可以分配，且无法使用mmap分配chunk，直接**返回NULL**
 
 * 若av不为main_arena
-
+  
   * 试图使用[grow_heap](#grow_heap)直接增加top_chunk大小以满足需求（若剩余的heap空间足够）
     * 若成功则设置对应的`av->system_mem`和`av->top.mchunk_size`
   * 试图使用[new_heap](#new_heap)分配一个新的heap块
@@ -1806,8 +1752,6 @@ static void *sysmalloc(INTERNAL_SIZE_T nb, mstate av);
   * 若上述尝试都失败且未尝试过mmap，直接回到上面试图mmap。注意这里不对先前的mmap条件做检查
 
 * 若av为main_arena
-
-
 
 #### 其他函数
 
@@ -1840,8 +1784,6 @@ static void internal_function munmap_chunk(mchunkptr p);
 * [mp_](#mp_)的n_mmaps原子减一，mmaped_mem原子减去该chunk大小
 * 调用`__munmap`释放内存
 
-
-
 #### check函数
 
 malloc.c中有一些check当前运行状态的函数，有助于理解运行时malloc的各个结构布局
@@ -1851,8 +1793,6 @@ malloc.c中有一些check当前运行状态的函数，有助于理解运行时m
 ```c
 static void do_check_chunk(mstate av, mchunkptr p);
 ```
-
-
 
 #### hook
 
@@ -1871,8 +1811,6 @@ malloc提供了一系列插入hook函数的点，插入hook的形式主要以下
 ##### __libc_malloc
 
 * `__malloc_hook`  进入函数时
-
-
 
 #### 有趣的写法
 
@@ -2063,4 +2001,3 @@ static mstate
 ```
 
 这里首先使用的获取arena的方式就是调用get_free_list，但这种方法并不使用size参数（下面另一种获取arena的方式：reused_arena也不检查）
-

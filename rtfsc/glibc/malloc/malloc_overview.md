@@ -9,28 +9,26 @@
 初始化后arena的内存布局如下
 
 ```
-				高地址
+                高地址
  ----------------
-|	top chunk	|
+|   top chunk    |
  ---------------- <---------\
-|	pad			|           |
+|   pad          |           |
  ----------------            |
-|	malloc_state | -- top --/
+|   malloc_state | -- top --/
  ---------------- <------------\
-|	heap_info	| -- ar_ptr --/
+|    heap_info    | -- ar_ptr --/
  ----------------    
- 				低地址
+                 低地址
 ```
 
 * pad部分可能有可能没有，这段pad是为了保证top chunk的memory部分与MALLOC_ALIGNMENT对齐，即`chunk2mem(p_top_chunk)`是MALLOC_ALIGNMENT对齐的
 
 用visio重画了一下
 
-![](I:\Git\Note\rtfsc\glibc\malloc\pic\arena.png)
+![](pic\arena.png)
 
 bins初始状态下都是指向当前节点对应的malloc chunk，所以图画成这样。如bin[0]和bin[1]分别为fd和bk指针，指向的是bin_at(av, 1)  （详见[bin_at](#bin_at)）
-
-
 
 ##### chunk
 
@@ -42,19 +40,19 @@ chunk使用一种称为“边界标签”的方法来管理（技术细节见ftp
 
 ```
     chunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	        |             Size of previous chunk, if unallocated (P clear)  |
-	        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	        |             Size of chunk, in bytes                     |A|M|P|
+            |             Size of previous chunk, if unallocated (P clear)  |
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            |             Size of chunk, in bytes                     |A|M|P|
       mem-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	        |             User data starts here...                          .
-	        .                                                               .
-	        .             (malloc_usable_size() bytes)                      .
-	        .                                                               |
+            |             User data starts here...                          .
+            .                                                               .
+            .             (malloc_usable_size() bytes)                      .
+            .                                                               |
 nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	        |             (size of chunk, but used for application data)    |
-	        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	        |             Size of next chunk, in bytes                |A|0|1|
-	        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            |             (size of chunk, but used for application data)    |
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            |             Size of next chunk, in bytes                |A|0|1|
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
 chunk指针指向的是malloc代码里的管理结构malloc_chunk，mem指向的内容就是当用户调用malloc函数时返回的指针。nextchunk指向下一个malloc_chunk结构
@@ -67,22 +65,22 @@ chunk一般是符合一些对齐规则的，因此返回的mem也是对齐的。
 
 ```
     chunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	        |             Size of previous chunk, if unallocated (P clear)  |
-	        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            |             Size of previous chunk, if unallocated (P clear)  |
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     `head:' |             Size of chunk, in bytes                     |A|0|P|
       mem-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	        |             Forward pointer to next chunk in list             |
-	        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	        |             Back pointer to previous chunk in list            |
-	        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	        |             Unused space (may be 0 bytes long)                .
-	        .                                                               .
-	        .                                                               |
+            |             Forward pointer to next chunk in list             |
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            |             Back pointer to previous chunk in list            |
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            |             Unused space (may be 0 bytes long)                .
+            .                                                               .
+            .                                                               |
 nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     `foot:' |             Size of chunk, in bytes                           |
-	        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	        |             Size of next chunk, in bytes                |A|0|0|
-	        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            |             Size of next chunk, in bytes                |A|0|0|
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ```
 
 P（PREV_INUSE）位表示前一个chunk正在被使用，若该位被清零（即前一个chunk没有被使用），那么[malloc_chunk](#malloc_chunk)的mchunk_prev_size记录了前一个chunk的大小。对于top chunk，该位总是被设置。若P被设置，则无法直接通过mchunk_prev_size获取前一个chunk的大小
@@ -122,19 +120,13 @@ A（NON_MAIN_ARENA）位表示当前chunk没有在main_arena上。在程序刚�
 
 ###### smallbin相关
 
-
-
 ###### largebin相关
-
-
 
 #### 关于锁
 
 ##### malloc
 
 * [_libc_malloc](#关于libc_malloc的锁操作)
-
-
 
 ### 注释
 
@@ -180,7 +172,7 @@ http://gee.cs.oswego.edu/dl/html/malloc.html
     valloc(size_t n);
     mallinfo()
     mallopt(int parameter_number, int parameter_value)
-    
+
 额外的函数:
     independent_calloc(size_t n_elements, size_t size, void* chunks[]);
     independent_comalloc(size_t n_elements, size_t sizes[], void* chunks[]);
@@ -214,7 +206,7 @@ http://gee.cs.oswego.edu/dl/html/malloc.html
                  对于8B的size_t: 2^64 - 2*page_size
     这里假设size_t（可能是一个unsigned类型）用于表示块的大小。虽然ISO C规定了size_t必须是unsigned，但还是有部分系统的size_t为signed。此外，即使size_t是unsigned类型，sbrk系统调用接收一个signed参数，因此可能无法接受所有的size_t值。通常来说，只有mmap能完全支持size_t的所有值。
     若试图分配一个大于允许分配长度的内存，或者系统无法分配更多内存时，malloc将返回NULL。
-    
+
 线程安全性:  线程安全
 ```
 
@@ -224,31 +216,31 @@ http://gee.cs.oswego.edu/dl/html/malloc.html
 很多人在不同的系统中编译过这份代码，如各版本的unix，有时下述的各个宏会被调整。
 该malloc的实现是ANSI C，并定义了很多宏。该代码应该使用优化选项进行编译，因为其可以简化宏中的表达式（FAQ：一些变量被定义为参数的形式，因为如果不这样做可能会使调试器无法正确解析）
 
-选项							默认值
+选项                            默认值
 编译环境选项
-  HAVE_MREMAP					0
+  HAVE_MREMAP                    0
 改变默认字长
-  INTERNAL_SIZE_T				size_t
+  INTERNAL_SIZE_T                size_t
 配置和功能选项
-  USE_PUBLIC_MALLOC_WRAPPERS	NOT defined
-  USE_MALLOC_LOCK				NOT defined
-  MALLOC_DEBUG					NOT defined
-  REALLOC_ZERO_BYTES_FREES		1
-  TRIM_FASTBINS					0
+  USE_PUBLIC_MALLOC_WRAPPERS    NOT defined
+  USE_MALLOC_LOCK                NOT defined
+  MALLOC_DEBUG                    NOT defined
+  REALLOC_ZERO_BYTES_FREES        1
+  TRIM_FASTBINS                    0
 MORECORE设置选项
-  MORECORE						若第360行的__default_morecore未定义，则为sbrk
-  MORECORE_FAILURE				-1
-  MORECORE_CONTIGUOUS			1
-  MORECORE_CANNOT_TRIM			NOT defined
-  MORECORE_CLEARS				1
-  MMAP_AS_MORECORE_SIZE			(1024*1024)
+  MORECORE                        若第360行的__default_morecore未定义，则为sbrk
+  MORECORE_FAILURE                -1
+  MORECORE_CONTIGUOUS            1
+  MORECORE_CANNOT_TRIM            NOT defined
+  MORECORE_CLEARS                1
+  MMAP_AS_MORECORE_SIZE            (1024*1024)
 下列选项可以通过mallopt动态修改
-  DEFAULT_MXFAST				64 (for 32bit)  128 (for 64bit)
-  DEFAULT_TRIM_THRESHOLD		128*1024
-  DEFAULT_TOP_PAD				0
-  DEFAULT_MMAP_THRESHOLD		128*1024
-  DEFAULT_MMAP_MAX				65536
-  
+  DEFAULT_MXFAST                64 (for 32bit)  128 (for 64bit)
+  DEFAULT_TRIM_THRESHOLD        128*1024
+  DEFAULT_TOP_PAD                0
+  DEFAULT_MMAP_THRESHOLD        128*1024
+  DEFAULT_MMAP_MAX                65536
+
 还有一些其他宏，但除非你要自己修改或扩充malloc功能，否则不需要调整
 ```
 
@@ -572,8 +564,8 @@ mmap的开销依旧很大，每次glibc调用mmap，内核都需要先将内存�
 
 最终的实现是使用了一个介于最大值和最小值间的动态阈值，最大值和最小值默认为128K和32M（在64位系统中为64M）。这使得设计要求可以满足：
 
-*  一般来说常驻内存在进程运行的早期被分配，由于此时阈值不会被调整，因此只要大于默认的128K即会使用mmap分配。而此后的分配会影响阈值，使阈值慢慢变大
-*  因为定义了最大值，因此可以满足第二点
+* 一般来说常驻内存在进程运行的早期被分配，由于此时阈值不会被调整，因此只要大于默认的128K即会使用mmap分配。而此后的分配会影响阈值，使阈值慢慢变大
+* 因为定义了最大值，因此可以满足第二点
 
 阈值调整：若程序释放了一块mmap的内存，阈值将增加。依据是当程序开始释放mmap的内存时，该块释放的内存很有可能是程序分配的临时内存。这个优化是为了满足第三个设计目的。
 

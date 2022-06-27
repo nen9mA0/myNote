@@ -129,11 +129,11 @@ int main()
 {
     struct foo foo_cache = kmem_cache_create("foo_cache", sizeof(struct foo), 0,
                                   foo_constructor, foo_destructor);
-    
+
     void *foo = kmem_cache_alloc(foo_cache, KM_SLEEP);
     use foo;
     kmem_cache_free(foo_cache, foo);
-    
+
     kmem_cache_destroy(foo_cache);
 }
 ```
@@ -202,8 +202,6 @@ freelist的最前端为全部分配的slab，其后是部分分配的slab，最�
 
 假设页面大小4K，kmem_slab结构体32B，块大小200B，则一个slab可以有20个分块，64B的内部碎片，该内部碎片则用于内存染色，即，若对齐大小为8B，则染色序列为0 8 16 24...意思就是第一个slab的块相对slab起始地址的offset为0，第二块为8，以此类推
 
-
-
 ## vmem
 
 ### Magazines
@@ -244,73 +242,73 @@ magazine[round++] = obj;
 
 ```c
 Alloc:
-	if (loaded_round > 0)
-		obj = loaded_magazine[--loaded_round];	//若loaded magazine非空则直接分配
-	else if (previous_round == M)
-	{
-		exchange(loaded_magazine, previous_magazine);
-		exchange(loaded_round, previous_round);
-		goto Alloc;			
-         //若loaded magazine空且previous magazine满，则交换loaded magazine和previous magazine
-	}
-	else		//若loaded和previous magazine都空
+    if (loaded_round > 0)
+        obj = loaded_magazine[--loaded_round];    //若loaded magazine非空则直接分配
+    else if (previous_round == M)
     {
-        if ( depot_hasfull(depot) )	//若depot有满的magazine
+        exchange(loaded_magazine, previous_magazine);
+        exchange(loaded_round, previous_round);
+        goto Alloc;            
+         //若loaded magazine空且previous magazine满，则交换loaded magazine和previous magazine
+    }
+    else        //若loaded和previous magazine都空
+    {
+        if ( depot_hasfull(depot) )    //若depot有满的magazine
         {
-            magazine_putback(previous_magazine, depot);	//归还previous magazine到depot
-            
+            magazine_putback(previous_magazine, depot);    //归还previous magazine到depot
+
             exchange(loaded_magazine, previous_magazine);
-            exchange(loaded_round, previous_round);		//将loaded移动到previous
-            
+            exchange(loaded_round, previous_round);        //将loaded移动到previous
+
             loaded_magazine = magazine_takeout(depot);
-            loaded_round = M;						//获取新的magazine作为loaded
+            loaded_round = M;                        //获取新的magazine作为loaded
             goto Alloc;
         }
-        else					//若depot无满的magazine
+        else                    //若depot无满的magazine
         {
-            magazine_alloc(depot, slab);	//从slab层分配新的magazine到depot
-            magazine_construct();			//构造函数在此调用
+            magazine_alloc(depot, slab);    //从slab层分配新的magazine到depot
+            magazine_construct();            //构造函数在此调用
             goto Alloc;
         }
     }
-	return obj;
+    return obj;
 ```
 
 ##### Free
 
 ```c
 Free:
-	if (loaded_round < M)		//若loaded magazine非满
+    if (loaded_round < M)        //若loaded magazine非满
         loaded_magazine[loaded_round++] = obj;
-	else if (previous_round == 0)	//若loaded magazine满previous magazine空
+    else if (previous_round == 0)    //若loaded magazine满previous magazine空
     {
-    	exchange(loaded_magazine, previous_magazine);
-		exchange(loaded_round, previous_round);
+        exchange(loaded_magazine, previous_magazine);
+        exchange(loaded_round, previous_round);
         goto Free;
     }
-	else					//若loaded和previous皆满
+    else                    //若loaded和previous皆满
     {
-        if ( depot_hasempty(depot) )	//若depot有空的magazine
+        if ( depot_hasempty(depot) )    //若depot有空的magazine
         {
             magazine_putback(previous_magazine, depot);
-            
+
             exchange(loaded_magazine, previous_magazine);
-            exchange(loaded_round, previous_round);		//将loaded移动到previous
-            
+            exchange(loaded_round, previous_round);        //将loaded移动到previous
+
             loaded_magazine = magazine_takeout(depot);
-            loaded_round = 0;						//获取新的magazine作为loaded
+            loaded_round = 0;                        //获取新的magazine作为loaded
             goto Free;
         }
-        else						//若depot无空magazine
+        else                        //若depot无空magazine
         {
-            if (can alloc an  magazine)	//若可以从slab分配一个magazine
+            if (can alloc an  magazine)    //若可以从slab分配一个magazine
             {
-               	magazine_alloc(depot, slab);
+                   magazine_alloc(depot, slab);
                 goto Free;
             }
             else
             {
-                
+
             }
         }
     }
@@ -318,15 +316,11 @@ Free:
 
 ## 未完
 
-
-
 #### magazine大小调整
 
 因为M越大可以降低cpu对全局空间的访问，但增大M也使得更多内存被浪费
 
 这里通过一种自适应算法，通过统计depot被访问的概率来调整magazine的大小
-
-
 
 ### vmem
 
@@ -340,6 +334,3 @@ Free:
 #### 结构
 
 ![](pic/slab_5.png)
-
-
-
