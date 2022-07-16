@@ -128,6 +128,18 @@ A（NON_MAIN_ARENA）位表示当前chunk没有在main_arena上。在程序刚�
 
 * [_libc_malloc](#关于libc_malloc的锁操作)
 
+#### fork相关
+
+在 [malloc.md](malloc.md) 中的atfork support一节中介绍了arena对于fork的支持，大致的流程如下：
+
+* 首先调用 __malloc_fork_lock_parent 对所有arena上锁
+
+* 系统进行fork，此时新进程将继承原进程地址空间的结构，包括所有的arena
+
+* fork对地址空间的构造结束，父进程调用 __malloc_fork_unlock_parent 解锁所有的arena
+
+* 对子进程来说，除thread_arena的数据外其他arena都是无用的，所以重新构造free_list并将所有除thread_arena的arena放入free_list中
+
 ### 注释
 
 #### malloc.c

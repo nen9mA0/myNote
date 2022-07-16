@@ -19,8 +19,11 @@
 网络接口不映射到文件，由系统分配名字，因此接口与前两者也完全不同
 
 # 第二章 建立和运行模块
+
 ## hello world
+
 ### hello_world.c
+
 ```c
 #include <linux/init.h>
 #include <linux/module.h>
@@ -43,6 +46,7 @@ module_exit(hello_exit);
 ```
 
 ### makefile
+
 ```bash
 ifneq ($(KERNELRELEASE),)
         obj-m :=hello_world.o
@@ -56,13 +60,13 @@ endif
 
 clean:
         rm -rf *.o *~ .depend .* .
-
 ```
 
 若有多个.c,使用`obj-m`指定生成的ko文件名,使用`module-objs`指定所有源码的.o文件
 这里makefile调用了/lib/modules的makefile
 
 ## 内核模块工作示意图
+
 ```
 insmod  -> init function->  blk_init_queue() ---
                         ->  add_disk()         |
@@ -81,53 +85,69 @@ rmmod   -> cleanup      ->  del_gendisk()        |
 ```
 
 ## 内核编程注意事项
+
 * 代码必须可重入
 * 内核空间内存占用较小(甚至只有4096B),因此尽量使用动态分配来获取大块内存
 * 内核代码不能做浮点运算
 
 ## 内核加载和卸载
+
 ### insmod
+
 用于加载一个模块,可以使用modprobe代替,但modprobe会检查模块中是否有当前内核没有定义的符号,若有则会在当前模块的路径中搜索其他模块是否有这个符号的定义,若有则将该模块一起加载.如果insmod遇到同样情况将只会报错
 
 ### rmmod
+
 用于卸载一个模块
 
 ### lsmod
+
 用于列出当前已加载模块,实际上是读取了`/proc/modules`也可以在`/sys/module`的sysfs文件系统中读取到
 
 ## 版本依赖
+
 因为在编译内核时,重要的一步是链接当前内核代码树中的`vermagic.o`文件,该文件含有很多信息如编译器版本/内核版本及其他配置变量.当尝试加载一个模块时系统会先检查模块与运行内核的兼容性.
 当需要编译指定版本的内核模块,需要下载该内核源码,并修改makefile的`KERNELDIR`变量制定源码树位置
 若需要编写适配多版本内核的模块,需要使用`#ifdef`使代码能正确编译,此时应包含`linux/module.h`,使用以下几个变量
+
 * `UTS_RELEASE`  描述内核树版本的字符串
 * `LINUX_VERSION_CODE`  内核版本的二进制形式
 * `KERNEL_VERSION`  使用这个宏可以将UTS_RELEASE转换为LINUX_VERSION_CODE
 
 ## 内核符号表
+
 有些驱动因为需要分层而被拆分成不同的.ko,其中一些模块需要用到其他模块的符号
+
 ```c
 EXPORT_SYMBOL(name);
 EXPORT_SYMBOL_GPL(name);
 ```
+
 可以使用这两个宏导出符号,注意必须在**全局部分调用**(即不能在函数内调用)
 
 ## 预备知识
+
 ### 一些宏与头文件
+
 #### 头文件
+
 * `linux/module.h`
 * `linux/init.h`  指定init和exit函数
 
 #### 宏
+
 * `MODULE_LICENSE`  若不是几个特定的许可将会被当做私有模块
 * `MODULE_AUTHOR`
 * `MODULE_DESCRIPTION`
 * `MODULE_VERSION`
 * `MODULE_ALIAS`  模块别名
 * `MODULE_DEVICE_TABLE`  模块支持的设备
-一般放在文件末尾
+  一般放在文件末尾
 
 ### init和exit
+
 #### init
+
 ```c
 static int __init initialization_function(void)
 {
@@ -135,9 +155,11 @@ static int __init initialization_function(void)
 }
 module_init(initialization_function);
 ```
+
 `__init`被用来标示为一个init函数
 
 #### exit
+
 ```c
 static void __exit cleanup_function(void)
 {
@@ -145,9 +167,11 @@ static void __exit cleanup_function(void)
 }
 module_exit(cleanup_function);
 ```
+
 `__exit`被用来标示一个exit函数,注意如果模块为built-in,标示为`__exit`的函数**不会被执行**
 
 #### 初始化中的错误处理
+
 ```c
 int __init my_init_function(void)
 {
@@ -172,8 +196,10 @@ fail_this:
         /* propagate the error */
 }
 ```
+
 虽然goto不被推荐使用但这里使用goto可以简化流程,因为假设this和that初始化成功而those初始化失败,需要释放this和that两者的资源,而若执行到that就失败只需释放this的资源
 对于较复杂的可以这样
+
 ```c
 struct something *item1;
 struct somethingelse *item2;
@@ -209,17 +235,22 @@ fail:
 ```
 
 ## 模块参数
+
 若模块加载时需要指定参数,可以在insmod或modprobe时指定,也可以从配置文件`/etc/modprobe.conf`指定
 
 ### 声明参数
+
 ```c
 static char *str = "AAAAA";
 static int num = 1;
 module_param(str, charp, S_IRUGO);
 module_param(num, int, S_IRUGO);
 ```
+
 **参数为: 变量名  类型  权限**
+
 ### 参数类型
+
 * bool
 * invbool
 * charp
@@ -230,71 +261,90 @@ module_param(num, int, S_IRUGO);
 * ulong
 * ushort
 
-
 ### 数组参数
+
 ```c
 module_param_array(name, type, num, perm);
 ```
+
 num参数表示数组长度,超过num的参数个数是非法的
 
 ### 权限
+
 使用`linux/stat.h`中的值,这个值控制谁可以在sysfs下存取该模块的参数
+
 * 0  不会在sysfs显示参数
 * S_IRUGO  可以被所有人读取
 * S_IRUGO|S_IWUSR  允许root改变参数,最好不要指定该选项
 
-
 ### 调用
+
 ```
 insmod hello_world.ko num=10 str="BBB"
 ```
+
 # 字符驱动
+
 ## 主次设备编号
+
 当在/dev下输入`ls -l`时,部分输出截取如下
+
 ```
 crw-rw----+ 1 root    video    81,     0 Dec  2 18:20 video0
 crw-rw----+ 1 root    video    81,     1 Dec  2 18:20 video1
 crw-rw-rw-  1 root    root      1,     5 Dec  2 18:20 zero
-
 ```
+
 c代表字符设备(b为块设备)
 中间两个数字为主次设备编号,主编号标识设备相连的驱动,如video0和1都由驱动81管理
 次编号用来决定引用哪个设备实例
 
 ### 设备编号的内部表示
+
 由`linux/types.h`定义`dev_t`,表示设备编号,为一个32位的量(12位主,20位次)
 可以使用`linux/kdev_t.h`的宏获取
+
 ```c
 MAJOR(dev_t dev);
 MINOR(dev_t dev);
 ```
+
 若有主次编号,需转换为dev_t
+
 ```c
 MKDEV(int major, int minor);
 ```
 
 ### 分配和释放设备编号
+
 #### 分配
+
 建立字符驱动的第一件事是获取一个设备编号
+
 ```c
 int register_chrdev_region(dev_t first, unsigned int count, char *name);
 int alloc_chrdev_region(dev_t *dev, unsigned int firstminor, unsigned int count,
 char *name);
 ```
+
 * first  要分配的设备编号
 * count  请求的连续设备编号总数
 * name  连接到这个编号范围的设备的名字,将会出现在/proc/devices和sysfs中
-`alloc_chrdev_region`则用于动态分配编号,常用于不知道需要给设备驱动分配什么编号的情况.firstminor用于指定次编号从哪里开始计算,常为0
+  `alloc_chrdev_region`则用于动态分配编号,常用于不知道需要给设备驱动分配什么编号的情况.firstminor用于指定次编号从哪里开始计算,常为0
 
 #### 释放
+
 ```c
 void unregister_chrdev_region(dev_t first, unsigned int count);
 ```
 
 ### 主编号的动态分配
+
 一些主编号是静态分配给指定设备的(定义在`Documentation/devices.txt`),因此一般应该使用动态分配
 动态分配缺点是无法提前创建设备节点,但其实可以从`/proc/devices`中读取动态分配的编号
+
 #### 获取设备编号
+
 ```c
 if (scull_major)
 {
@@ -320,95 +370,94 @@ if (result < 0)
 ```c
 struct file_operations
 {
-	struct module *owner;
-    			//指向拥有该模块的指针，用于阻止操作一半被卸载
-	loff_t (*llseek) (struct file *, loff_t, int);
-    			//lseek
-	ssize_t (*read) (struct file *, char __user *, size_t, loff_t *);
-    			//read
-	ssize_t (*write) (struct file *, const char __user *, size_t, loff_t *);
-        		//write
-	ssize_t (*aio_read) (struct kiocb *, const struct iovec *, unsigned long, loff_t);
+    struct module *owner;
+                //指向拥有该模块的指针，用于阻止操作一半被卸载
+    loff_t (*llseek) (struct file *, loff_t, int);
+                //lseek
+    ssize_t (*read) (struct file *, char __user *, size_t, loff_t *);
+                //read
+    ssize_t (*write) (struct file *, const char __user *, size_t, loff_t *);
+                //write
+    ssize_t (*aio_read) (struct kiocb *, const struct iovec *, unsigned long, loff_t);
     //异步读——在函数返回前不结束的读操作，若为NULL则默认调用read
-	ssize_t (*aio_write) (struct kiocb *, const struct iovec *, unsigned long, loff_t);
+    ssize_t (*aio_write) (struct kiocb *, const struct iovec *, unsigned long, loff_t);
     //异步写
-	int (*readdir) (struct file *, void *, filldir_t);
+    int (*readdir) (struct file *, void *, filldir_t);
     //对于设备应该为NULL，仅用于文件系统读目录
-	unsigned int (*poll) (struct file *, struct poll_table_struct *);
+    unsigned int (*poll) (struct file *, struct poll_table_struct *);
     //作为poll/epoll/select调用的后端，查询对一个或多个文件描述符的读写是否会阻塞，为NULL则默认不阻塞
-	int (*ioctl) (struct inode *, struct file *, unsigned int, unsigned long);
+    int (*ioctl) (struct inode *, struct file *, unsigned int, unsigned long);
     //提供调用设备特定命令的方法
-	long (*unlocked_ioctl) (struct file *, unsigned int, unsigned long);
-	long (*compat_ioctl) (struct file *, unsigned int, unsigned long);
-	int (*mmap) (struct file *, struct vm_area_struct *);
+    long (*unlocked_ioctl) (struct file *, unsigned int, unsigned long);
+    long (*compat_ioctl) (struct file *, unsigned int, unsigned long);
+    int (*mmap) (struct file *, struct vm_area_struct *);
     //请求将设备内存映射到进程的地址空间
-	int (*open) (struct inode *, struct file *);
+    int (*open) (struct inode *, struct file *);
     //open
-	int (*flush) (struct file *, fl_owner_t id);
+    int (*flush) (struct file *, fl_owner_t id);
     //在进程关闭文件描述符时调用，用于清空缓冲区
-	int (*release) (struct inode *, struct file *);
+    int (*release) (struct inode *, struct file *);
     //文件结构被释放时调用，注意这里不是close时被调用，而是文件描述符的所有拷贝都被关闭时调用，flush在close时被调用
-	int (*fsync) (struct file *, struct dentry *, int datasync);
+    int (*fsync) (struct file *, struct dentry *, int datasync);
     //fsync
-	int (*aio_fsync) (struct kiocb *, int datasync);
+    int (*aio_fsync) (struct kiocb *, int datasync);
     //异步fsync
-	int (*fasync) (int, struct file *, int);
+    int (*fasync) (int, struct file *, int);
     //通知设备它的FASYNC标志改变
-	int (*lock) (struct file *, int, struct file_lock *);
+    int (*lock) (struct file *, int, struct file_lock *);
     //文件锁，设备一般不用
-	ssize_t (*sendpage) (struct file *, struct page *, int, size_t, loff_t *, int);
+    ssize_t (*sendpage) (struct file *, struct page *, int, size_t, loff_t *, int);
     //内核调用来发送数据到对应文件，一次一页
-	unsigned long (*get_unmapped_area)(struct file *, unsigned long, unsigned long, unsigned long, unsigned long);
+    unsigned long (*get_unmapped_area)(struct file *, unsigned long, unsigned long, unsigned long, unsigned long);
     //在进程的地址空间找一个合适位置映射内存
-	int (*check_flags)(int);
+    int (*check_flags)(int);
     //检查传递给fnctl(F_SETFL...)调用的标志
-	int (*dir_notify)(struct file *filp, unsigned long arg);
+    int (*dir_notify)(struct file *filp, unsigned long arg);
     //使用fcntl来请求目录改变通知时调用
-	int (*flock) (struct file *, int, struct file_lock *);
-	ssize_t (*splice_write)(struct pipe_inode_info *, struct file *, loff_t *, size_t, unsigned int);
-	ssize_t (*splice_read)(struct file *, loff_t *, struct pipe_inode_info *, size_t, unsigned int);
-	int (*setlease)(struct file *, long, struct file_lock **);
+    int (*flock) (struct file *, int, struct file_lock *);
+    ssize_t (*splice_write)(struct pipe_inode_info *, struct file *, loff_t *, size_t, unsigned int);
+    ssize_t (*splice_read)(struct file *, loff_t *, struct pipe_inode_info *, size_t, unsigned int);
+    int (*setlease)(struct file *, long, struct file_lock **);
 };
-
 ```
 
 ### struct file
 
 ```c
 struct file {
-	/*
-	 * fu_list becomes invalid after file_free is called and queued via
-	 * fu_rcuhead for RCU freeing
-	 */
-	union {
-		struct list_head	fu_list;
-		struct rcu_head 	fu_rcuhead;
-	} f_u;
-	struct path		f_path;
-#define f_dentry	f_path.dentry
-#define f_vfsmnt	f_path.mnt
-	const struct file_operations	*f_op;	//对应的file_operations
-	atomic_t		f_count;
-	unsigned int 		f_flags; //O_RDONLY O_NONBLOCK O_SYNC
-	mode_t			f_mode;	//FMODE_READ FMODE_WRITE
-	loff_t			f_pos;	//当前读写位置
-	struct fown_struct	f_owner;
-	unsigned int		f_uid, f_gid;
-	struct file_ra_state	f_ra;
+    /*
+     * fu_list becomes invalid after file_free is called and queued via
+     * fu_rcuhead for RCU freeing
+     */
+    union {
+        struct list_head    fu_list;
+        struct rcu_head     fu_rcuhead;
+    } f_u;
+    struct path        f_path;
+#define f_dentry    f_path.dentry
+#define f_vfsmnt    f_path.mnt
+    const struct file_operations    *f_op;    //对应的file_operations
+    atomic_t        f_count;
+    unsigned int         f_flags; //O_RDONLY O_NONBLOCK O_SYNC
+    mode_t            f_mode;    //FMODE_READ FMODE_WRITE
+    loff_t            f_pos;    //当前读写位置
+    struct fown_struct    f_owner;
+    unsigned int        f_uid, f_gid;
+    struct file_ra_state    f_ra;
 
-	u64			f_version;
+    u64            f_version;
 #ifdef CONFIG_SECURITY
-	void			*f_security;
+    void            *f_security;
 #endif
-	/* needed for tty driver, and maybe others */
-	void			*private_data;	//用于保存驱动开发者自定义的数据
+    /* needed for tty driver, and maybe others */
+    void            *private_data;    //用于保存驱动开发者自定义的数据
 
 #ifdef CONFIG_EPOLL
-	/* Used by fs/eventpoll.c to link all the hooks to this file */
-	struct list_head	f_ep_links;
-	spinlock_t		f_ep_lock;
+    /* Used by fs/eventpoll.c to link all the hooks to this file */
+    struct list_head    f_ep_links;
+    spinlock_t        f_ep_lock;
 #endif /* #ifdef CONFIG_EPOLL */
-	struct address_space	*f_mapping;
+    struct address_space    *f_mapping;
 };
 ```
 
@@ -418,70 +467,70 @@ struct file {
 
 ```c
 struct inode {
-	struct hlist_node	i_hash;
-	struct list_head	i_list;
-	struct list_head	i_sb_list;
-	struct list_head	i_dentry;
-	unsigned long		i_ino;
-	atomic_t		i_count;
-	unsigned int		i_nlink;
-	uid_t			i_uid;
-	gid_t			i_gid;
-	dev_t			i_rdev;
-	unsigned long		i_version;
-	loff_t			i_size;
+    struct hlist_node    i_hash;
+    struct list_head    i_list;
+    struct list_head    i_sb_list;
+    struct list_head    i_dentry;
+    unsigned long        i_ino;
+    atomic_t        i_count;
+    unsigned int        i_nlink;
+    uid_t            i_uid;
+    gid_t            i_gid;
+    dev_t            i_rdev;
+    unsigned long        i_version;
+    loff_t            i_size;
 #ifdef __NEED_I_SIZE_ORDERED
-	seqcount_t		i_size_seqcount;
+    seqcount_t        i_size_seqcount;
 #endif
-	struct timespec		i_atime;
-	struct timespec		i_mtime;
-	struct timespec		i_ctime;
-	unsigned int		i_blkbits;
-	blkcnt_t		i_blocks;
-	unsigned short          i_bytes;
-	umode_t			i_mode;
-	spinlock_t		i_lock;	/* i_blocks, i_bytes, maybe i_size */
-	struct mutex		i_mutex;
-	struct rw_semaphore	i_alloc_sem;
-	const struct inode_operations	*i_op;
-	const struct file_operations	*i_fop;	/* former ->i_op->default_file_ops */
-	struct super_block	*i_sb;
-	struct file_lock	*i_flock;
-	struct address_space	*i_mapping;
-	struct address_space	i_data;
+    struct timespec        i_atime;
+    struct timespec        i_mtime;
+    struct timespec        i_ctime;
+    unsigned int        i_blkbits;
+    blkcnt_t        i_blocks;
+    unsigned short          i_bytes;
+    umode_t            i_mode;
+    spinlock_t        i_lock;    /* i_blocks, i_bytes, maybe i_size */
+    struct mutex        i_mutex;
+    struct rw_semaphore    i_alloc_sem;
+    const struct inode_operations    *i_op;
+    const struct file_operations    *i_fop;    /* former ->i_op->default_file_ops */
+    struct super_block    *i_sb;
+    struct file_lock    *i_flock;
+    struct address_space    *i_mapping;
+    struct address_space    i_data;
 #ifdef CONFIG_QUOTA
-	struct dquot		*i_dquot[MAXQUOTAS];
+    struct dquot        *i_dquot[MAXQUOTAS];
 #endif
-	struct list_head	i_devices;
-	union {
-		struct pipe_inode_info	*i_pipe;
-		struct block_device	*i_bdev;
-		struct cdev		*i_cdev;
-	};
-	int			i_cindex;
+    struct list_head    i_devices;
+    union {
+        struct pipe_inode_info    *i_pipe;
+        struct block_device    *i_bdev;
+        struct cdev        *i_cdev;
+    };
+    int            i_cindex;
 
-	__u32			i_generation;
+    __u32            i_generation;
 
 #ifdef CONFIG_DNOTIFY
-	unsigned long		i_dnotify_mask; /* Directory notify events */
-	struct dnotify_struct	*i_dnotify; /* for directory notifications */
+    unsigned long        i_dnotify_mask; /* Directory notify events */
+    struct dnotify_struct    *i_dnotify; /* for directory notifications */
 #endif
 
 #ifdef CONFIG_INOTIFY
-	struct list_head	inotify_watches; /* watches on this inode */
-	struct mutex		inotify_mutex;	/* protects the watches list */
+    struct list_head    inotify_watches; /* watches on this inode */
+    struct mutex        inotify_mutex;    /* protects the watches list */
 #endif
 
-	unsigned long		i_state;
-	unsigned long		dirtied_when;	/* jiffies of first dirtying */
+    unsigned long        i_state;
+    unsigned long        dirtied_when;    /* jiffies of first dirtying */
 
-	unsigned int		i_flags;
+    unsigned int        i_flags;
 
-	atomic_t		i_writecount;
+    atomic_t        i_writecount;
 #ifdef CONFIG_SECURITY
-	void			*i_security;
+    void            *i_security;
 #endif
-	void			*i_private; /* fs or device private pointer */
+    void            *i_private; /* fs or device private pointer */
 };
 ```
 
@@ -558,13 +607,13 @@ cdev_add(struct cdev* p, dev_t dev, unsigned count);
 static void scull_setup_cdev(struct scull_dev* dev, int index)
 {
     int err, devno = MKDEV(scull_major, scull_minor+index);
-    
+
     cdev_init(&dev->cdev, &scull_fops);
     dev->cdev.owner = THIS_MODULE;
     dev->cdev.ops = &scull_fops;
     err = cdev_add(&dev->cdev, devno, 1);
     if(err)
-        	printk(KERN_NOTICE "Error %d adding scull%d", err, index);
+            printk(KERN_NOTICE "Error %d adding scull%d", err, index);
 }
 ```
 
@@ -624,7 +673,7 @@ scull不需要实现release，因此定义一个空函数
 ```c
 int scull_release(struct inode *inode, struct file *filp)
 {
-	return 0;
+    return 0;
 }
 ```
 
@@ -645,14 +694,14 @@ void kfree(void *ptr);
 int scull_trim(struct scull_dev *dev)
 {
     struct scull_qset *next, *dptr;
-    int qset = dev->qset; 		/* "dev" is not-null */
+    int qset = dev->qset;         /* "dev" is not-null */
     int i;
     for (dptr = dev->data; dptr; dptr = next)
-    { 						/* all the list items */
+    {                         /* all the list items */
         if (dptr->data)
         {
             for (i = 0; i < qset; i++)
-            	kfree(dptr->data[i]);
+                kfree(dptr->data[i]);
             kfree(dptr->data);
             dptr->data = NULL;
         }
@@ -715,14 +764,14 @@ ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_
     int itemsize = quantum * qset; /* how many bytes in the listitem */
     int item, s_pos, q_pos, rest;
     ssize_t retval = 0;
-    
+
     if (down_interruptible(&dev->sem))
-    	return -ERESTARTSYS;
+        return -ERESTARTSYS;
     if (*f_pos >= dev->size)
-    	goto out;
+        goto out;
     if (*f_pos + count > dev->size)
-    	count = dev->size - *f_pos;
-    
+        count = dev->size - *f_pos;
+
     /* find listitem, qset index, and offset in the quantum */
     item = (long)*f_pos / itemsize;
     rest = (long)*f_pos % itemsize;
@@ -731,14 +780,14 @@ ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_
     /* follow the list up to the right position (defined elsewhere) */
     dptr = scull_follow(dev, item);
     if (dptr == NULL || !dptr->data || ! dptr->data[s_pos])
-    	goto out; /* don't fill holes */
+        goto out; /* don't fill holes */
     /* read only up to the end of this quantum */
     if (count > quantum - q_pos)
-    	count = quantum - q_pos;
+        count = quantum - q_pos;
     if (copy_to_user(buf, dptr->data[s_pos] + q_pos, count))
     {
-    	retval = -EFAULT;
-    	goto out;
+        retval = -EFAULT;
+        goto out;
     }
     *f_pos += count;
     retval = count;
@@ -762,35 +811,35 @@ ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, lof
     int item, s_pos, q_pos, rest;
     ssize_t retval = -ENOMEM; /* value used in "goto out" statements */
     if (down_interruptible(&dev->sem))
-    	return -ERESTARTSYS;
-    
+        return -ERESTARTSYS;
+
     /* find listitem, qset index and offset in the quantum */
     item = (long)*f_pos / itemsize;
     rest = (long)*f_pos % itemsize;
     s_pos = rest / quantum;
     q_pos = rest % quantum;
-    
+
     /* follow the list up to the right position */
     dptr = scull_follow(dev, item);
     if (dptr == NULL)
-    	goto out;
+        goto out;
     if (!dptr->data)
     {
-    	dptr->data = kmalloc(qset * sizeof(char *), GFP_KERNEL);
+        dptr->data = kmalloc(qset * sizeof(char *), GFP_KERNEL);
         if (!dptr->data)
-        	goto out;
+            goto out;
         memset(dptr->data, 0, qset * sizeof(char *));
     }
     if (!dptr->data[s_pos])
     {
         dptr->data[s_pos] = kmalloc(quantum, GFP_KERNEL);
         if (!dptr->data[s_pos])
-        	goto out;
+            goto out;
     }
-    
+
     /* write only up to the end of this quantum */
     if (count > quantum - q_pos)
-    	count = quantum - q_pos;
+        count = quantum - q_pos;
     if (copy_from_user(dptr->data[s_pos]+q_pos, buf, count))
     {
         retval = -EFAULT;
@@ -800,7 +849,7 @@ ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, lof
     retval = count;
     /* update the size */
     if (dev->size < *f_pos)
-    	dev->size = *f_pos;
+        dev->size = *f_pos;
     out:
     up(&dev->sem);
     return retval;
@@ -911,7 +960,7 @@ printk将内容打印到一个__LOG_BUF_LEN长度的环形缓冲区，尔后唤�
 
 ```c
 if (printk_ratelimit())
-	printk(KERN_NOTICE "The printer is still on fire\n");
+    printk(KERN_NOTICE "The printer is still on fire\n");
 ```
 
 若limit值还没到将返回false
@@ -951,24 +1000,24 @@ int (*read_proc)(char *page, char **start, off_t offset, int count, int *eof, vo
 int scull_read_procmem(char *buf, char **start, off_t offset, int count, int *eof, void *data)
 {
     int i, j, len = 0;
-    int limit = count - 80;					/* Don't print more than this */
-    
+    int limit = count - 80;                    /* Don't print more than this */
+
     for (i = 0; i < scull_nr_devs && len <= limit; i++)
     {
         struct scull_dev *d = &scull_devices[i];
         struct scull_qset *qs = d->data;
         if (down_interruptible(&d->sem))
-        	return -ERESTARTSYS;
-        
+            return -ERESTARTSYS;
+
         len += sprintf(buf+len,"\nDevice %i: qset %i, q %i, sz %li\n", i, d->qset, d->quantum, d->size);
         for (; qs && len <= limit; qs = qs->next)
-        {									/* scan the list */
+        {                                    /* scan the list */
             len += sprintf(buf + len, " item at %p, qset at %p\n", qs, qs->data);
-            if (qs->data && !qs->next)		/* dump only the last item */
-            	for (j = 0; j < d->qset; j++)
+            if (qs->data && !qs->next)        /* dump only the last item */
+                for (j = 0; j < d->qset; j++)
                 {
                     if (qs->data[j])
-                    	len += sprintf(buf + len, " % 4i: %8p\n", j, qs->data[j]);
+                        len += sprintf(buf + len, " % 4i: %8p\n", j, qs->data[j]);
                 }
         }
         up(&scull_devices[i].sem);
@@ -1074,7 +1123,7 @@ char *esc);
 static void *scull_seq_start(struct seq_file *s, loff_t *pos)
 {
     if (*pos >= scull_nr_devs)
-    	return NULL; /* No more to read */
+        return NULL; /* No more to read */
     return scull_devices + *pos;
 }
 
@@ -1092,15 +1141,15 @@ static int scull_seq_show(struct seq_file *s, void *v)
     struct scull_qset *d;
     int i;
     if (down_interruptible (&dev->sem))
-    	return -ERESTARTSYS;
+        return -ERESTARTSYS;
     seq_printf(s, "\nDevice %i: qset %i, q %i, sz %li\n", 
                (int) (dev - scull_devices), dev->qset, 
                dev->quantum, dev->size);
     for (d = dev->data; d; d = d->next)
-    { 									/* scan the list */
+    {                                     /* scan the list */
         seq_printf(s, " item at %p, qset at %p\n", d, d->data);
         if (d->data && !d->next) /* dump only the last item */
-        	for (i = 0; i < dev->qset; i++)
+            for (i = 0; i < dev->qset; i++)
             {
                 if (d->data[i])
                     seq_printf(s, " % 4i: %8p\n", i, d->data[i]);
@@ -1113,11 +1162,11 @@ static int scull_seq_show(struct seq_file *s, void *v)
 
 设计的调用对应关系如下
 
-| 应用程序 | 驱动                           |
-| -------- | ------------------------------ |
-| open     | scull_seq_start                |
-| read     | scull_seq_next, scull_seq_show |
-| close    | scull_seq_stop                 |
+| 应用程序  | 驱动                             |
+| ----- | ------------------------------ |
+| open  | scull_seq_start                |
+| read  | scull_seq_next, scull_seq_show |
+| close | scull_seq_stop                 |
 
 ###### 注册
 
@@ -1135,7 +1184,7 @@ static struct seq_operations scull_seq_ops = {
 ```c
 static int scull_proc_open(struct inode *inode, struct file *file)
 {
-	return seq_open(file, &scull_seq_ops);
+    return seq_open(file, &scull_seq_ops);
 }
 ```
 
@@ -1158,7 +1207,7 @@ static struct file_operations scull_proc_ops = {
 ```c
 entry = create_proc_entry("scullseq", 0, NULL);
 if (entry)
-	entry->proc_fops = &scull_proc_ops;
+    entry->proc_fops = &scull_proc_ops;
 ```
 
 这里的create_proc_entry是比上面create_proc_read_entry更底层的接口
@@ -1327,8 +1376,8 @@ val为信号量初始值
 linux定义了几个宏方便声明互斥锁
 
 ```c
-DECLARE_MUTEX(name);		//初始化为1
-DECLARE_MUTEX_LOCKED(name);	//初始化为0
+DECLARE_MUTEX(name);        //初始化为1
+DECLARE_MUTEX_LOCKED(name);    //初始化为0
 ```
 
 ###### 动态分配互斥锁初始化
@@ -1351,6 +1400,7 @@ int down_trylock(struct semaphore *sem);
 * down  不可被用户中断，即若调用down但总是获取不到锁则进程会卡死
 
 * down_interruptible  最常用，可被中断，但中断意味着没有获取到锁，程序种应当正确处理该错误
+
 * down_trylock  非阻塞，即使不能获取锁也立马返回
 
 ##### V
@@ -1393,8 +1443,8 @@ if( down_interrupt(&dev->sem) )
 
 ```c
 out:
-	up(&dev->sem);
-	return retval;
+    up(&dev->sem);
+    return retval;
 ```
 
 ### reader/writer semaphore
@@ -1483,8 +1533,3 @@ init_completion(&my_completion);
 ```
 
 #### 等待
-
-
-
-
-

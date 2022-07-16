@@ -382,6 +382,15 @@ p为当前chunk指针，返回前一个chunk指针。p-前一个chunksize为prev
   (((mchunkptr)(((char *)(p)) + (s)))->mchunk_size |= PREV_INUSE)
 ```
 
+###### DUMPED_MAIN_ARENA_CHUNK
+
+若指针落在 [dumped_main_arena_start](#dumped_main_arena_start) 与 [dumped_main_arena_end](#dumped_main_arena_end) 间则返回1
+
+```c
+#define DUMPED_MAIN_ARENA_CHUNK(p) \
+  ((p) >= dumped_main_arena_start && (p) < dumped_main_arena_end)
+```
+
 ##### REQUEST_OUT_OF_RANGE
 
 ```c
@@ -985,7 +994,13 @@ static mstate arena_get_retry(mstate ar_ptr, size_t bytes);
     * 解锁`ar_ptr->mutex`
     * 调用[arena_get2](#arena_get2)获取arena并返回指针
 
-#### 底层函数：arena相关
+##### heap_trim
+
+```c
+static int internal_function heap_trim (heap_info *heap, size_t pad);
+```
+
+* #### 底层函数：arena相关
 
 ##### arena_get2
 
@@ -1000,13 +1015,13 @@ static mstate internal_function arena_get2(size_t size, mstate avoid_arena);
 * 调用[get_free_list](#get_free_list)试图复用一个free_list上的arena
   * 若有直接返回新的arena
   * 若无，则首先确定arena数量的限制（static变量，只获取一次），方式如下
-    * 若[mp_](#mp_)的[arena_max成员](#malloc_par)不为0，则直接使用该值
-    * 若[narenas](#narenas)大于mp_的arena_test成员
+    * 若[mp_](#mp_)的[arena_max成员](#malloc_par)不为0，则直接以该值作为 `narenas_limit`
+    * 否则，若[narenas](#narenas)大于mp_的arena_test成员
       * 调用__get_nprocs获取计算机核心数
-      * 若返回值大于等于1，调用[NARENAS_FROM_NCORES](#NARENAS_FROM_NCORES)确定arena数
-      * 否则说明该调用无法正确获取核心数，假设核心数为2，调用NARENAS_FROM_NCORES
+      * 若返回值大于等于1，调用[NARENAS_FROM_NCORES](#NARENAS_FROM_NCORES)确定arena数，以该值为 `narenas_limit`
+      * 否则说明该调用无法正确获取核心数，假设核心数为2，调用NARENAS_FROM_NCORES，以该值为 `narenas_limit`
   * `narenas <= narenas_limit - 1`是否成立
-    * 若是
+    * 若是，说明允许创建新的arena
       * 首先试图使用CAS操作（[catomic_compare_and_exchange_bool_acq](#catomic_compare_and_exchange_bool_acq)）为narenas加一，若CAS测试失败（即`narenas != oldval`）则跳回`narenas_limit-1`判断重新进行判断
       * 调用[_int_new_arena](#_int_new_arena)创建大小为size的arena
       * 若返回NULL，说明创建arena失败，使用原子操作[catomic_decrement](#catomic_decrement)对narenas减一
@@ -1015,7 +1030,7 @@ static mstate internal_function arena_get2(size_t size, mstate avoid_arena);
 
 ##### _int_new_arena
 
-新建一个arena，每个arena的内存布局见[arena内存布局](#arena内存布局)
+新建一个arena，每个arena的内存布局见[arena内存布局](malloc_overview.md#arena内存布局)
 
 ```c
 static mstate _int_new_arena(size_t size);
@@ -1041,7 +1056,9 @@ static mstate _int_new_arena(size_t size);
 
 这里在最后加入main_arena列表和detach_arena时涉及了一些多线程操作
 
-注释里说：最后一步给新的arena上锁是因为在这个时刻新的arena已经可以被其他线程访问了（通过main_arena.next），并且可能已经被reused_arena获取，这种情况仅在最后一个arena被创建时（arena_max-1）可能发生，这时一个arena将会被挂载到两个线程上。虽然如果将这句放到获取list_lock前可以避免这种情况，但这可能造成与[__malloc_fork_lock_parent](#__malloc_fork_lock_parent)函数死锁
+注释里说：最后一步给新的arena上锁是因为在这个时刻新的arena已经可以被其他线程访问了（通过main_arena.next），并且可能已经被reused_arena获取，这种情况仅在最后一个arena被创建时（arena_max-1）可能发生（因为这时候才可能既有调用`_int_new_arena`的线程又有调用`reused_arena`的线程），这时一个arena将会被挂载到两个线程上。虽然如果将这句放到获取list_lock前可以避免这种情况，但这可能造成与[__malloc_fork_lock_parent](#__malloc_fork_lock_parent)函数死锁
+
+这里的意思应该是在在获取list_lock前将arena上锁，可能与`__malloc_fork_lock_parent`死锁，因为该函数中会先获取list_lock，再将所有的arena上锁。但这里为什么不能先获取list_lock，对arena上锁，再释放list_lock呢，这个方案似乎可以避免上述两个问题，因为这个方法会使得list_lock的临界区代码中操作了与其无关的资源么（list_lock本应只是用来对arena的链表这一资源进行控制的）
 
 ##### reused_arena
 
@@ -1057,8 +1074,8 @@ static mstate reused_arena(mstate avoid_arena);
     * 若遍历一遍找不到，则**返回NULL**
   * 执行到这里说明找到了可以复用的arena，将arena上锁
 * （第一次循环若找到了arena，也跳到该处执行，此时result指向可用arena且已上锁）
-* 调用[detach_arena](#detach_arena)将当前的thread_arena取下
-* 上锁[free_list_lock](#free_list_lock)，调用[remove_from_free_list](#remove_from_free_list)将result指向的arena取下，attached_threads成员加一，此后解锁
+* 上锁[free_list_lock](#free_list_lock)，调用[detach_arena](#detach_arena)将当前的thread_arena取下
+* 调用[remove_from_free_list](#remove_from_free_list)将result指向的arena取下，attached_threads成员加一，此后解锁free_list_lock
 * 将result赋给thread_arena，且令`next_to_use=result->next`
 
 ##### detach_arena
@@ -1086,7 +1103,7 @@ arena_thread_freeres(void);
 
 ##### get_free_list
 
-从free_list获取一个arena，赋值给thread_arena
+将原来的thread_arena解绑，并从free_list获取一个arena，赋值给thread_arena
 
 ```c
 static mstate get_free_list(void);
@@ -1099,8 +1116,9 @@ static mstate get_free_list(void);
     * （若attached_threads不为0触发assert，理论上必为0，因为在加入free_list时会进行检查）
     * `result->attach_threads`设为1
     * 调用[detach_arena](#detach_arena)解绑thread_arena
-    * `thread_arena = result`
+    * 解锁 free_list_lock
     * 给新arena（result指向的元素）上锁
+    * `thread_arena = result`
 
 ##### remove_from_free_list
 
@@ -1144,7 +1162,19 @@ static heap_info *internal_function new_heap(size_t size, size_t top_pad);
     p1 = (char *)MMAP(0, HEAP_MAX_SIZE << 1, PROT_NONE, MAP_NORESERVE);
     ```
     
-    注意这里分配了`HEAP_MAX_SIZE*2`大小的空间，并且如果ul为0，会将**aligned_heap_area**的值赋为`p1+HEAP_MAX_SIZE`（这里见下面的进一步说明）。即下次调用new_heap的时候会使用第一种方式mmap，并且新创建的heap块在上一次创建的heap块的上方（高地址）。
+    注意这里分配了`HEAP_MAX_SIZE*2`大小的空间，令p2为p1的下一个与HEAP_MAX_SIZE对齐的地址，`ul = p2-p1`
+    
+    * 若ul=0，说明p1本身就是HEAP_MAX_SIZE对齐的
+      
+      * 会将**aligned_heap_area**的值赋为`p1+HEAP_MAX_SIZE`（这里见下面的进一步说明）。即下次调用new_heap的时候会使用第一种方式mmap，并且新创建的heap块在上一次创建的heap块的上方（高地址）。
+      
+      * 将p1块后多余的HEAP_MAX_SIZE释放
+    
+    * 若ul不等于0，说明p1不是HEAP_MAX_SIZE对齐的
+      
+      * 将**aligned_heap_area**的值赋为`p2+HEAP_MAX_SIZE`
+      
+      * 将p2块前后的空间释放
     
     调用完成后会把第二块HEAP_MAX_SIZE大小的块munmap掉。
   
@@ -1209,7 +1239,7 @@ static int internal_function heap_trim(heap_info *heap, size_t pad);
 ```
 
 * 使用[top](#top)宏获取heap指向的arena的top_chunk
-* 判断top chunk是否等于`heap+sizeof(heap_info)`
+* 判断top chunk是否等于`heap+sizeof(heap_info)`，即当前的top chunk是否为heap的第一个chunk
   * 
 
 #### 其他函数
@@ -1246,7 +1276,7 @@ static inline bool check_may_shrink_heap (void);
 
 ##### __malloc_fork_lock_parent
 
-将list_lock中的每个arena上锁
+将list_lock中的每个arena上锁，在父进程fork前调用
 
 ```c
 void internal_function __malloc_fork_lock_parent(void);
@@ -1260,7 +1290,7 @@ void internal_function __malloc_fork_lock_parent(void);
 
 ##### __malloc_fork_unlock_parent
 
-将list_lock中的每个arena解锁
+将list_lock中的每个arena解锁，在父进程fork后调用
 
 ```c
 void internal_function __malloc_fork_unlock_parent(void);
@@ -1403,16 +1433,32 @@ fastbin的最大值
 static INTERNAL_SIZE_T global_max_fast;
 ```
 
+##### dumped_main_arena
+
+用于支持undumping（[DUMPED_MAIN_ARENA_CHUNK](#DUMPED_MAIN_ARENA_CHUNK)），对于落在这个范围内的mmap分配的chunk我们可以放任不管，因为这类chunk标记为IS_MMAPED但不会被释放
+
+###### dumped_main_arena_start
+
+```c
+static mchunkptr dumped_main_arena_start;
+```
+
+###### dumped_main_arena_end
+
+```c
+static mchunkptr dumped_main_arena_end;
+```
+
 #### 顶层函数
 
 ##### __libc_malloc
-
-顶层函数
 
 ```c
 void *__libc_malloc(size_t bytes);
 ```
 
+* hook相关
+  * [__libc_malloc](#HOOK__libc_malloc) 
 * TCACHE相关
   * a
 * 使用[arena_get](#arena_get)试图获取arena
@@ -1445,6 +1491,100 @@ void *__libc_malloc(size_t bytes);
 * arena_get2
   * `_int_new_arena`两次调用`new_heap`都失败，注意这里代码写的是return 0，可能出错（虽然目前所有编译器下NULL==0）
   * `reuse_arena`中没有在arena链表上找到合适的arena
+
+##### __libc_free
+
+```c
+void __libc_free (void *mem);
+```
+
+* hook相关
+  
+  * [__libc_free](#HOOK_libc_free)
+
+* 若mem为0（即NULL），直接返回
+
+* 获取对应chunk，判断是否为mmap分配 [chunk_is_mmapped](#chunk_is_mmapped)
+  
+  * 若是，这里有一个动态调整mmap threshold的机制
+    
+    * 若 [mp_](#mp_) 的`no_dyn_threshold` 成员为0，说明开启了动态调整机制
+    
+    * 且chunk大小大于 [mp_](#mp_) 的 `mmap_threshold` 成员且小于 [DEFAULT_MMAP_THRESHOLD_MAX](#DEFAULT_MMAP_THRESHOLD_MAX)
+    
+    * 且chunk不在 [DUMPED_MAIN_ARENA_CHUNK](#DUMPED_MAIN_ARENA_CHUNK) 范围内
+      
+      * 更新 [mp_](#mp_) 的 `mmap_threshold` 为该chunk的大小
+      
+      * 更新 [mp_](#mp_) 的 `trim_threshold` 为双倍的 `mmap_threshold` 大小
+  
+  * 调用 [munmap_chunk](#munmap_chunk) 释放chunk
+  
+  * 调用 [MAYBE_INIT_TCACHE](#MAYBE_INIT_TCACHE) 初始化TCACHE（若允许TCACHE）
+  
+  * 调用 [arena_for_chunk](#arena_for_chunk) 获取对应的arena
+  
+  * 调用 [_int_free](#_int_free) 释放chunk
+
+##### __libc_realloc
+
+```c
+void *__libc_realloc (void *oldmem, size_t bytes);
+```
+
+* hook相关
+  
+  * [__libc_realloc](#HOOK_libc_realloc)
+
+* 若定义了宏 `REALLOC_ZERO_BYTES_FREES` ，则当bytes参数为0时视为调用 [__libc_free](#__libc_free)
+
+* 若old_mem为0，则视为调用 [__libc_malloc](#__libc_malloc) ，返回其结果
+
+* 对指针所在的地址进行简单的检查，主要是检查是否对齐、是否存在地址空间的溢出（wrap around）
+
+* 调用 [checked_request2size](#checked_request2size) 检查bytes是否符合大小要求
+
+* 若原来的chunk是使用mmap分配的
+  
+  * 若是faked mmaped chunk （[DUMPED_MAIN_ARENA_CHUNK](#DUMPED_MAIN_ARENA_CHUNK)）则不需要free原来的chunk
+    
+    * 调用 [__libc_malloc](#__libc_malloc) 分配内存
+      
+      * **若分配失败，直接返回NULL**
+    
+    * 将旧chunk的内容复制到新的chunk，若旧chunk比新的大，则截断复制
+    
+    * **返回chunk指针**
+  
+  * 若定义了HAVE_MREMAP，即有mremap函数
+    
+    * 调用 [mremap_chunk](#mremap_chunk) 分配新的chunk
+    
+    * 若分配成功，**返回新的chunk**
+  
+  * 若原来mmap的内存块大于新的请求，则 **直接返回原来的块**
+
+* 运行到这，说明chunk不是用mmap分配的，使用 [MAYBE_INIT_TCACHE](#MAYBE_INIT_TCACHE) 初始化TCACHE并调用 [arena_for_chunk](#arena_for_chunk) 获取当前chunk的arena（其实这一步是在前面做的，但为了清晰这边放到后面来了）
+  
+  * 为arena上锁
+  
+  * 调用 [_int_realloc](#_int_realloc) 重新分配chunk
+  
+  * 为arena解锁
+
+* 若新分配的chunk为NULL
+  
+  * 调用 [_libc_malloc](#_libc_malloc) 分配新内存
+  
+  * 若上面分配成功，则将旧内存复制到新内存，并调用 [_int_free](#_int_free) 释放旧的内存
+
+##### _libc_memalign
+
+
+
+
+
+
 
 #### 主要函数
 
@@ -1808,9 +1948,17 @@ malloc提供了一系列插入hook函数的点，插入hook的形式主要以下
 
 下面列出了几个主要的hook函数和hook的点
 
-##### __libc_malloc
+##### HOOK_libc_malloc
 
 * `__malloc_hook`  进入函数时
+
+##### HOOK_libc_free
+
+* `__free_hook` 进入函数时
+
+##### HOOK_libc_realloc
+
+* `__realloc_hook` 进入函数时
 
 #### 有趣的写法
 
