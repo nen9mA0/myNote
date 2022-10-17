@@ -46,12 +46,12 @@ int draw_line(int x0, int x1, int y0, int y1)
 {
     int dx = abs(x1-x0);
     int dy = abs(y1-y0);
-    
+
     double k = (double)dy/dx;
-    int err = -0.5;			//将大于/小于0.5的判断转化为0的判断
+    int err = -0.5;            //将大于/小于0.5的判断转化为0的判断
     int x = x0;
     int y = y0;
-    
+
     for(int i=0; i<=dx; i++)
     {
         setpixel(x,y);
@@ -74,7 +74,7 @@ if err+k < 0.5:
   err = err + k
 else:
   err = err + k - 1
-  
+
 可以转化为
 2*(err+k) < 1
 进一步，两边同乘dx
@@ -137,9 +137,9 @@ ydx - xdy + C + err = 0
 ```c
 void bresenham(int x0, int y0, int x1, int y1)
 {
-    int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;		//设置步进方向
+    int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;        //设置步进方向
     int dy = abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-    int err = (dx > dy ? dx : -dy) / 2;		//若dx>dy对应k<1的情况，否则反之
+    int err = (dx > dy ? dx : -dy) / 2;        //若dx>dy对应k<1的情况，否则反之
 
     while (setpixel(x0, y0), x0 != x1 || y0 != y1) {
         int e2 = err;
@@ -176,6 +176,7 @@ z_1 z_2 &= (a + b i) (c + d i)
 $$
 
 向量形式
+
 $$
 \begin{aligned}
 z_1 &=
@@ -216,9 +217,11 @@ ad + bc
 
 \end{aligned}
 $$
+
 拓展：如果根据上式把z看做矩阵
 
 矩阵形式：
+
 $$
 \begin{aligned}
 
@@ -261,5 +264,5 @@ ad+bc & ac-bd
 
 \end{aligned}
 $$
-因此乘法运算结果符合我们对向量矩阵形式的规定，因此可以写成矩阵形式
 
+因此乘法运算结果符合我们对向量矩阵形式的规定，因此可以写成矩阵形式
