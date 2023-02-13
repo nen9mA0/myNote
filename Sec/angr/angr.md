@@ -2,7 +2,7 @@
 
 ## 核心概念
 
-### 顶层接口
+### Top Level Interfaces 顶层接口
 
 #### 载入程序
 
@@ -100,7 +100,7 @@ angr里有很多类模块，大多数需要提供一个项目文件以用于实�
 
 ```python
 >>> block.capstone                       # capstone disassembly
-# capstone殷勤的反汇编对象
+# capstone的反汇编对象
 <CapstoneBlock for 0x401670>
 >>> block.vex                            # VEX IRSB (that's a python internal address, not a program address)
 # pyvex IR中间表示语言
@@ -157,8 +157,8 @@ SimState对象包含程序的内存、寄存器、文件系统数据等。所有
 * 使用\.\<type\>指定该地址的数据应该被解释为什么类型（char,short,int,long,size_t,uint8_t,uint16_t等）
 * 通过上面的语法可以
   * 给指定内容复制，既可以是python的int也可以是bitvector
-  * 使用**.resolved**获取指定内容的值（以bitvector形式）
-  * 使用**.concrete**获取指定内容的值（以python int形式）
+  * 使用 **.resolved** 获取指定内容的值（以bitvector形式）
+  * 使用 **.concrete** 获取指定内容的值（以python int形式）
 
 最后，在你尝试获取寄存器时可能会遇到如下的值
 
@@ -184,7 +184,7 @@ Simulation Managers是angr用于管理执行、模拟过程的主要接口。当
 [<SimState @ 0x401670>]
 ```
 
-SimulationManager可以保存多个状态。默认的状态属性**active**使用我们传入的state初始化。我们可以通过**simgr.active[0]**查看我们传入的state。
+SimulationManager可以保存多个状态。默认的状态属性**active**使用我们传入的state初始化。我们可以通过 **simgr.active[0]** 查看我们传入的state。
 
 现在我们执行一下程序
 
@@ -234,7 +234,7 @@ angr有一些内建的包用来对程序进行分析，如下：
 2
 ```
 
-### 载入一个二进制文件
+### Loading a Binary 载入一个二进制文件
 
 上一节中你学到了如何载入/bin/true，并且用不载入动态链接库的方式重新载入/bin/true。并且学习了一些loader的用法。下面将深入探讨这个模块。
 
@@ -358,30 +358,45 @@ angr有一些内建的包用来对程序进行分析，如下：
 * **linked_addr**  文件偏移地址
 * **relative_addr**  RVA
 
-此外为了提供更多的调试信息，符号支持解析动态链接。比如libc提供malloc函数，主程序需要malloc函数。如果我们用CLE获取主程序中malloc符号的地址，CLE将告诉我们这是个导入符号。导入符号并不和一个特定地址联系，但它们提供了一个用于解析它们的符号引用。可以使用**resolveby**解析。
+```c
+>>> strcmp.name
+'strcmp'
+
+>>> strcmp.owner
+<ELF Object libc-2.23.so, maps [0x1000000:0x13c999f]>
+
+>>> strcmp.rebased_addr
+0x1089cd0
+>>> strcmp.linked_addr
+0x89cd0
+>>> strcmp.relative_addr
+0x89cd0
+```
+
+此外为了提供更多的调试信息，符号支持解析动态链接。比如libc提供strcmp函数，主程序需要strcmp函数。如果我们用CLE获取主程序中strcmp符号的地址，CLE将告诉我们这是个导入符号。导入符号并不和一个特定地址联系，但它们提供了一个用于解析它们的符号引用。可以使用**resolveby**解析。
 
 ```python
->>> malloc.is_export
+>>> strcmp.is_export
 True
->>> malloc.is_import
+>>> strcmp.is_import
 False
 
 # On Loader, the method is find_symbol because it performs a search operation to find the symbol.
 # On an individual object, the method is get_symbol because there can only be one symbol with a given name.
->>> main_malloc = proj.loader.main_object.get_symbol("malloc")
->>> main_malloc
-<Symbol "malloc" in true (import)>
->>> main_malloc.is_export
+>>> main_strcmp = proj.loader.main_object.get_symbol('strcmp')
+>>> main_strcmp
+<Symbol "strcmp" in fauxware (import)>
+>>> main_strcmp.is_export
 False
->>> main_malloc.is_import
+>>> main_strcmp.is_import
 True
->>> main_malloc.resolvedby
-<Symbol "malloc" in libc.so.6 at 0x1054400>
+>>> main_strcmp.resolvedby
+<Symbol "strcmp" in libc.so.6 at 0x1089cd0>
 ```
 
 所有导入或导出的符号都被一个叫重定位的过程处理。重定位即为：如果有一个导入符号与导出符号相匹配，将导出符号地址写到对应的导入表项中。我们可以通过**obj.relocs**获取obj的所有**relocation类列表**，或使用**obj.imports**获取重定位名称与**reloction类**映射的**字典**。没有对应方法获取导出符号。
 
-可以使用**.symbol**获取一个**relocation类**对应的**Symbol类**。重定位的地址可以使用任何Symbol类中支持的地址标识符类型来获取。同样，你可以通过**.owner_obj**获取Symbol类拥有者的Object类（即拥有Symbol导入符号的Object）
+可以使用 **.symbol**获取一个**relocation类**对应的**Symbol类**。重定位的地址可以使用任何Symbol类中支持的地址标识符类型来获取。同样，你可以通过 **.owner**获取Symbol类拥有者的Object类（即拥有Symbol导入符号的Object）
 
 ```python
 # Relocations don't have a good pretty-printing, so those addresses are python-internal, unrelated to our program
@@ -429,7 +444,8 @@ True
 * arch  指定使用的架构
 
 ```python
-angr.Project(main_opts={'backend': 'ida', 'arch': 'i386'}, lib_opts={'libc.so.6': {'backend': 'elf'}})
+>>> angr.Project('examples/fauxware/fauxware', main_opts={'backend': 'blob', 'arch': 'i386'}, lib_opts={'libc.so.6': {'backend': 'elf'}})
+<Project examples/fauxware/fauxware>
 ```
 
 #### 后端
@@ -444,7 +460,7 @@ CLE有加载ELF,PE,CGC,Mach-O,core dump等文件的后端，也可以使用IDA�
 * cgc  Cyber Grand Challenge文件加载器
 * backedcgc  支持指定内存地址和register backers的cgc加载器
 * elfcore  core dump加载器
-* ida  使用一个IDA实例对象加载文件，需要指定arch
+* ida  使用一个IDA实例对象加载文件，需要指定arch（好像新版的manual把这个删了）
 * blob  将文件加载到一个平坦的内存空间，需要指定架构
 
 #### 符号函数
@@ -454,15 +470,16 @@ CLE有加载ELF,PE,CGC,Mach-O,core dump等文件的后端，也可以使用IDA�
 若对于某个库函数找不到对应的符号函数：
 
 * 若**auto_load_libs**为真（默认），系统将执行库函数本身。这可能不是我们所期望的，取决于库函数功能。比如，某些函数分析起来很复杂且会导致程序状态数量激增。
-* 若**auto_load_libs**为假，系统不会执行库函数，而是将这些函数调用指向Simprocedure的stub模块中一个称为**ReturnUnconstrained**的函数，这个函数返回一个无约束的符号量。
-* 你可以通过传递**exclude_sim_procedures_list**和**exclude_sim_procedures_func**参数给angr.Project来指定不被simprocedures模拟的函数
+* 若**auto_load_libs**为假，系统不会执行库函数，而是将这些函数调用指向SimProcedure的stub模块中一个称为**ReturnUnconstrained**的函数，这个函数返回一个无约束的符号量。
+* 若**use_sim_procedures**为假（默认为真）（这是`angr.Project`的选项，而非`cle.Loader`），则只有外部对象提供的符号会被替换，且替换为上述的ReturnUnconstrained函数
+* 你可以通过传递**exclude_sim_procedures_list**和**exclude_sim_procedures_func**参数给angr.Project来指定不被SimProcedures模拟的函数
 * **angr.Project._register_object** 源码提供了该功能的具体算法
 
 ##### 钩子
 
 angr使用python函数替换原库函数的原理被称为函数钩子，你同样可以自己使用该功能。当模拟运行时，每执行一步angr会检查当前地址有没有钩子，如果有，执行hook指定的代码。API为**proj.hook(addr,hook)**，其中hook是一个**SimProcedure**实例，可以使用is_hooked，.unhook，.hooked_by等方法。
 
-还有一种方法可以用于自定义函数钩子，即将**proj.hook(addr)**作为一个装饰器使用。如果你这样做，你还可以给出一个**length**参数用于指定你的函数执行完后应跳转到原地址后几个字节处开始i执行。
+还有一种方法可以用于自定义函数钩子，即将 **proj.hook(addr)** 作为一个装饰器使用。如果你这样做，你还可以给出一个**length**参数用于指定你的函数执行完后应跳转到原地址后几个字节处开始执行。
 
 ```python
 >>> stub_func = angr.SIM_PROCEDURES['stubs']['ReturnUnconstrained'] # this is a CLASS
@@ -489,7 +506,7 @@ True
 ##### Project
 
 ```python
-angr.Project(filename)		#创建一个angr工程
+angr.Project(filename)        #创建一个angr工程
 
 参数：
 auto_load_libs
@@ -510,6 +527,7 @@ exclude_sim_procedures_func
 ##### loader
 
 ```python
+属性：
 .all_objects   显示所有模块（主程序、动态链接库、内核、外部引用、TLS等）
 .main_object   显示主模块
 .shared_object
@@ -517,23 +535,26 @@ exclude_sim_procedures_func
 .extern_object
 .kernel_object
 
+方法:
 .find_object_containing()  返回给定地址所在的模块
-.find_symbol()		返回符号名对应的symbol对象
+.find_symbol()        返回符号名对应的symbol对象
 ```
 
 ##### Object
 
 ```python
-.entry			入口点
+属性：
+.entry            入口点
 .min_addr
 .max_addr
 .segments
 .sections
-.plt			输入符号名返回地址
-.reverse_plt	输入地址返回符号名
-.link_base		链接时指定的虚拟地址
-.mapped_base	实际的加载地址
+.plt            输入符号名返回地址
+.reverse_plt    输入地址返回符号名
+.link_base        链接时指定的虚拟地址
+.mapped_base    实际的加载地址
 
+方法：
 .find_segment_containing()
 .find_section_containing()
 ```
@@ -541,26 +562,29 @@ exclude_sim_procedures_func
 ##### symbol
 
 ```python
+属性：
 .name
-.owner_obj		符号链接到的地址
-.rebased_addr	虚拟地址
-.linked_addr	文件偏移地址
-.relative_addr	RVA
+.owner_obj        符号链接到的地址
+.rebased_addr    虚拟地址
+.linked_addr    文件偏移地址
+.relative_addr    RVA
 
+方法：
 .is_export
 .is_import
-.resolvedby		解析符号所对应地址
+.resolvedby        解析符号所对应地址
 ```
 
 ##### SimProcedure
 
 ```python
+属性：
 .is_hooked
 .unhook
 .hooked_by
 ```
 
-### 求解器引擎
+### Solver Engine 求解器引擎
 
 angr最厉害的地方不在于它的模拟器功能，而在于他可以执行我们称为符号变量的东西。与保存一个具体数值的普通变量不同，符号变量保存一个符号，实际上就是一个名称。在符号变量上执行算术操作将生成一个操作树（在编译原理中被称为抽象语法树，AST）。AST可以被翻译为SMT求解器（如z3）的约束。下面我们将学习angr是如何解决一个类似“给定一个输出，求解输入”的问题。
 
@@ -569,20 +593,24 @@ angr最厉害的地方不在于它的模拟器功能，而在于他可以执行�
 ##### 声明
 
 ```python
-import angr,monkeyhex
-proj = angr.Project('/bin/true')
-state = proj.factory.entry_state()	#入口点状态
+# 这里首先需要创建state，从而获取一个上下文
+>>> import angr, monkeyhex
+>>> proj = angr.Project('/bin/true')
+>>> state = proj.factory.entry_state()
 
-one = state.solver.BVV(1,64)		#创建BV
-print one
->>> <BV64 0x1>
-hundred = state.solver.BVV(100,64)
-print hundred
->>> <BV64 0x64>
 
-weird_nine = stat.solver.BVV(9,27)
-print weird_nine
->>> <BV27 0x9>
+# 64-bit bitvectors with concrete values 1 and 100
+>>> one = state.solver.BVV(1, 64)
+>>> one
+ <BV64 0x1>
+>>> one_hundred = state.solver.BVV(100, 64)
+>>> one_hundred
+ <BV64 0x64>
+
+# create a 27-bit bitvector with concrete value 9
+>>> weird_nine = state.solver.BVV(9, 27)
+>>> weird_nine
+<BV27 0x9>
 ```
 
 ##### 运算
@@ -615,10 +643,10 @@ print weird_nine
 >>> two = state.solver.BVV(-2,27)
 >>> two
 <BV27 0x7fffffe>
->>> unsignextend = two.zero_extend(64-27)	#无符号扩展
+>>> unsignextend = two.zero_extend(64-27)    #无符号扩展
 >>> unsignextend
 <BV64 0x7fffffe>
->>> signextend = two.sign_extend(64-27)		#有符号扩展
+>>> signextend = two.sign_extend(64-27)        #有符号扩展
 >>> signextend
 <BV64 0xfffffffffffffffe>
 ```
@@ -654,6 +682,8 @@ print weird_nine
 
 每个AST都有.op和.args属性
 
+op属性定义运算符，args属性定义操作数。由于本质为AST，所以args只可能是其他AST，或是BVV/BVS
+
 ```python
 >>> tree = (x + 1) / (y + 2)
 >>> tree
@@ -672,8 +702,6 @@ print weird_nine
 (1, 64)
 ```
 
-op属性定义运算符，args属性定义操作数
-
 #### 符号约束
 
 将比较运算符用于两个AST变量将产生一个新的AST：符号布尔量
@@ -687,15 +715,17 @@ op属性定义运算符，args属性定义操作数
 <Bool x_9_64 > 0x2>
 >>> x + y == one_hundred + 5
 <Bool (x_9_64 + y_10_64) == 0x69>
->>> one_hundred > 5		#注意这里如果AST是常量将直接产生比较运算后的结果
+>>> one_hundred > 5        #注意这里如果AST是常量将直接产生比较运算后的结果
 <Bool True>
->>> one_hundred > -5	#注意，这里的-5默认会被初始化为值0xff...ffb的数（即无符号整型），
-						#因此比较结果为False，若想使用有符号数比较应调用one_hundred.SGT(-5)
-    					#signed greater than
+>>> one_hundred > -5    #注意，这里的-5默认会被初始化为<BV64 0xfffffffffffffffb>（即无符号整型），
+                        #因此比较结果为False，若想使用有符号数比较应调用one_hundred.SGT(-5)
+                        #signed greater than
 <Bool False>
 ```
 
-注意上面说明所有的AST比较运算将生成一个AST，因此如果要获得表达式的值（即真或假），需使用.is_true和.is_false
+上述结果可以看出，默认的比较是无符号比较。若需要有符号比较，可以使用 `one_hundred.SGT(-5)` 即signed greater than。其他运算符见
+
+注意上面说明所有的AST比较运算将生成一个AST，因此如果要获得表达式的值（即真或假），需使用.is_true和.is_false（即使这些符号量被赋了确定值）
 
 ```python
 >>> yes = one == 1
@@ -709,7 +739,7 @@ False
 False
 >>> state.solver.is_false(no)
 True
->>> state.solver.is_true(maybe)	#注意未约束的符号量的输出，两个函数都为False
+>>> state.solver.is_true(maybe)    #注意未约束的符号量的输出，两个函数都为False
 False
 >>> state.solver.is_false(maybe)
 False
@@ -740,27 +770,55 @@ state.solver.eval(input)
 
 输出：0x3333333333333381
 
+添加约束后，可以使用.satisfiable()检查约束是否有解
+
+```python
+>>> state.solver.add(input < 2**32)
+>>> state.satisfiable()
+False
+```
+
+此外，可以添加更复杂的约束
+
+```python
+>>> state.solver.add(x - y >= 4)
+>>> state.solver.add(y > 0)
+>>> state.solver.eval(x)
+5
+>>> state.solver.eval(y)
+1
+>>> state.solver.eval(x + y)
+6
+```
+
+可以看到eval函数是一个通用的将bitvector符号值转换成python元类型的函数
+
 ##### 注意
 
 **符号不会和状态绑定，因此在某个状态创建的符号在其他状态下依旧可以调用**
 
 #### 浮点数
 
+因为z3支持IEEE754浮点，因此angr也进行了适配，差别只是z3使用width作为参数，而angr使用了枚举来定义类型
+
 ```python
-a = state.solver.FPV(3.2,state.solver.fp.FSORT_DOUBLE)
-print a
-b = state.solver.FPS('b',state.solver.fp.FSORT_DOUBLE)
-print b
-print a+b
-print b+2<0
-```
-
-输出：
-
-```
+# fresh state
+>>> state = proj.factory.entry_state()
+>>> a = state.solver.FPV(3.2, state.solver.fp.FSORT_DOUBLE)
+>>> a
 <FP64 FPV(3.2, DOUBLE)>
+
+>>> b = state.solver.FPS('b', state.solver.fp.FSORT_DOUBLE)
+>>> b
 <FP64 FPS('FP_b_0_64', DOUBLE)>
+
+>>> a + b
 <FP64 fpAdd('RNE', FPV(3.2, DOUBLE), FPS('FP_b_0_64', DOUBLE))>
+
+>>> a + 4.4
+<FP64 FPV(7.6000000000000005, DOUBLE)>
+
+>>> b + 2 < 0
 <Bool fpLT(fpAdd('RNE', FPS('FP_b_0_64', DOUBLE), FPV(2.0, DOUBLE)), FPV(0.0, DOUBLE))>
 ```
 
@@ -778,9 +836,9 @@ print b+2<0
 
 [舍入模式](<https://en.wikipedia.org/wiki/IEEE_754#Rounding_rules>)
 
-#### 数据类型转换
+##### 数据类型转换
 
-##### 二进制转换
+###### 二进制转换
 
 直接将浮点数与其二进制表示互相转换，包含符号位
 
@@ -796,7 +854,7 @@ print b+2<0
 <FP64 fpToFP(x_1_64, DOUBLE)>
 ```
 
-##### 类型转换
+###### 类型转换
 
 ```python
 >>> a
@@ -807,51 +865,73 @@ print b+2<0
 <FP32 FPV(3.0, FLOAT)>
 ```
 
+#### 其他求解选项
 
+* `solver.eval(e)`  给出一个可能的解
+
+* `solver.eval_one(e)`  给出一个解，且当问题不止有一个解时会抛出一个异常
+
+* `solver.eval_upto(e, n)`  给出最多n个解
+
+* `solver.eval_atleast(e, n)`  给出n个解，若解数小于n会抛出异常
+
+* `solver.eval_exact(e, n)`  给出n个解，若解数不等于n时会抛出异常
+
+* `solver.min(e)`  给出最小的一个可能解
+
+* `solver.max(e)`  给出最大的一个可能解
+
+此外上述的方法都可以接收下列参数
+
+* `extra_constraints`  以tuple形式提供，作为额外的约束加入求解，但不会被加入当前状态
+
+* `cast_to`  使得返回的结果转换为指定的类型，这里指定的类型只能是int或bytes
+  
+  ```python
+  >>> state.solver.eval(state.solver.BVV(0x41424344, 32), cast_to=bytes)
+  b'ABCD'
+  ```
 
 #### 本节介绍的模块与方法
 
 ##### Bitvectors
 
 ```python
-state.solver.BVV	#构造一个Bitvectors常数
-state.solver.BVS	#构造一个Bitvectors符号量
-	#此处state为SimState类，见第一节顶层接口的States
+state.solver.BVV    #构造一个Bitvectors常数
+state.solver.BVS    #构造一个Bitvectors符号量
+    #此处state为SimState类，见第一节顶层接口的States
 方法：
-.zero_extend		#无符号扩展
-.sign_extend		#有符号扩展
+.zero_extend        #无符号扩展
+.sign_extend        #有符号扩展
 属性：
-.op					#运算符
-.args				#操作数
-					#具体行为可看下面的程序
+.op                    #运算符
+.args                #操作数
+                    #具体行为可看下面的程序
 ```
+
 ###### 例子
+
 ```python
-one = state.solver.BVV(1,64)
-print one
-print one.op
-print one.args
-x = state.solver.BVS("x",64)
-print x
-print x.op
-print x.args
-y = x+one
-print y
-print y.op
-print y.args
-```
-
-###### 输出
-
-```
+>>> one = state.solver.BVV(1,64)
+>>> one
 <BV64 0x1>
+>>> one.op
 BVV
+>>> one.args
 (1L, 64)
-<BV64 x_0_64>
+>>> x = state.solver.BVS("x",64)
+>>> x
 BVS
+>>> x.op
+BVS
+>>> x.args
 ('x_0_64', None, None, None, False, False, None)
+>>> y = x+one
+>>> y
 <BV64 x_0_64 + 0x1>
+>>> y.op
 __add__
+>>> y.args
 (<BV64 x_0_64>, <BV64 0x1>)
 ```
 
@@ -862,15 +942,10 @@ __add__
 ###### 例子
 
 ```python
-yes = one == 1
-print yes
-print state.solver.is_true(yes)
-```
-
-###### 输出
-
-```
+>>> yes = one == 1
+>>> yes
 <Bool True>
+>>> state.solver.is_true(yes)
 True
 ```
 
@@ -883,7 +958,7 @@ solver.eval_one   #若多于一解将抛出异常
 solver.eval_upto(expression,n)  #求出n个解
 solver.eval_atleast(expression,n) #如果少于n解抛出异常
 solver.min
-solver.max			#可能的解的数量
+solver.max            #可能的解的数量
 solver.satisfiable
 ```
 
@@ -897,7 +972,7 @@ solver.satisfiable
 "ABCD"
 ```
 
-### 程序状态
+### Program State 程序状态
 
 #### 访问寄存器和内存
 
@@ -923,13 +998,13 @@ solver.satisfiable
 
 仿真管理器的具体内容在下一节，这节简单介绍基本方法
 
-基本的单步执行可以用**state.step()**完成，该方法返回一个**SimSuccessors**类
+基本的单步执行可以用 **state.step()** 完成，该方法返回一个**SimSuccessors**类
 
-这里我们关心的是**.successor**属性，该属性会返回该状态的所有successor列表。为什么是一个列表？事实上当符号执行遇到分支语句时（如if(x>4)），将加入两个不同的约束式，一个是**<Bool x_32_1 > 4>**，一个是**<Bool x_32_1 <= 4>**。
+这里我们关心的是 **.successor** 属性，该属性会返回该状态的所有successor列表。为什么是一个列表？事实上当符号执行遇到分支语句时（如if(x>4)），将分出两个state，并加入两个不同的约束式，一个是 `<Bool x_32_1 > 4>` ，一个是 `<Bool x_32_1 <= 4>` ，分别代表分支跳转和不跳转的状态 。
 
 下面举一个例子，这是一个模拟的简单恶意软件，源码如下
 
-```C
+```c
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -940,51 +1015,51 @@ char *sneaky = "SOSNEAKY";
 
 int authenticate(char *username, char *password)
 {
-	char stored_pw[9];
-	stored_pw[8] = 0;
-	int pwfile;
+    char stored_pw[9];
+    stored_pw[8] = 0;
+    int pwfile;
 
-	// evil back d00r
-	if (strcmp(password, sneaky) == 0) return 1;
+    // evil back d00r
+    if (strcmp(password, sneaky) == 0) return 1;
 
-	pwfile = open(username, O_RDONLY);
-	read(pwfile, stored_pw, 8);
+    pwfile = open(username, O_RDONLY);
+    read(pwfile, stored_pw, 8);
 
-	if (strcmp(password, stored_pw) == 0) return 1;
-	return 0;
+    if (strcmp(password, stored_pw) == 0) return 1;
+    return 0;
 
 }
 
 int accepted()
 {
-	printf("Welcome to the admin console, trusted user!\n");
+    printf("Welcome to the admin console, trusted user!\n");
 }
 
 int rejected()
 {
-	printf("Go away!");
-	exit(1);
+    printf("Go away!");
+    exit(1);
 }
 
 int main(int argc, char **argv)
 {
-	char username[9];
-	char password[9];
-	int authed;
+    char username[9];
+    char password[9];
+    int authed;
 
-	username[8] = 0;
-	password[8] = 0;
+    username[8] = 0;
+    password[8] = 0;
 
-	printf("Username: \n");
-	read(0, username, 8);
-	read(0, &authed, 1);
-	printf("Password: \n");
-	read(0, password, 8);
-	read(0, &authed, 1);
+    printf("Username: \n");
+    read(0, username, 8);
+    read(0, &authed, 1);
+    printf("Password: \n");
+    read(0, password, 8);
+    read(0, &authed, 1);
 
-	authed = authenticate(username, password);
-	if (authed) accepted();
-	else rejected();
+    authed = authenticate(username, password);
+    if (authed) accepted();
+    else rejected();
 }
 ```
 
@@ -1013,30 +1088,60 @@ print state1,state2
 
 默认情况下，对于标准输入，angr会将其当做一个无限字节流的符号变量。
 
-可以使用**state.posix.stdin.load(0,state.posix.stdin.size)**获取某个状态对输入变量的**引用**，如
+可以使用 **state.posix.stdin.load(0,state.posix.stdin.size)** 获取某个状态对输入变量的**引用**，如
 
 ```python
-input_data = state1.posix.stdin.load(0,state.posix.stdin.size)
-print state1.solver.eval(input_data,cast_to=bytes)
-print state2.solver.eval(input_data,cast_to=bytes)
+>>> input_data = state1.posix.stdin.load(0, state1.posix.stdin.size)
 
-输出：
-         SOSNEAKY
-         S
+>>> state1.solver.eval(input_data, cast_to=bytes)
+b'\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00\x00\x00'
+
+>>> state2.solver.eval(input_data, cast_to=bytes)
+b'\x00\x00\x00\x00\x00\x00\x00\x00\x00S\x00\x80N\x00\x00 \x00\x00\x00\x00'
 ```
 
 可以看到，走第一条分支的密码SOSNEAKY已被求出，代表了走向该路径可能的一种解
+
+#### 预设的State
+
+* `.blank_state()`  大多数的数据没有被初始化，当访问未初始化数据时会返回一个无约束的符号量
+
+* `.entry_state()`  构造一个到达程序入口点，准备执行的状态
+
+* `.full_init_state()`  构造一个到达程序入口点，准备执行的状态，且执行了所有的初始化器（如共享库构造器）
+
+* `.call_state()`  构造一个准备执行某个指定函数的状态
+
+也可以自己通过这些函数来指定state
+
+* 所有的构造器都可以接受一个addr参数来指定从哪个地址开始
+
+* `entry_state`和`full_init_state`
+  
+  * 可以使用args和env参数来指定程序启动的参数，该参数可以是一个字符串，或是一个bitvector（表示其作为符号）
+  
+  * 若希望argc是符号化的，可以传入一个符号量作为 `argc` 的参数，注意如果这样做了，应该添加一个约束式，令argc小于等于args中参数的个数
+
+* `call_state(addr, arg1, arg2, ...)`
+  
+  * addr 指定函数地址，argN指定函数的参数。若希望传入的参数是一个实际指向一块分配了内存的指针，则应该使用PointerWrapper传入
+    
+    ```python
+    angr.PointerWrapper("point to me!")
+    ```
+  
+  * 关于调用约定，可以通过传入[SimCC](https://api.angr.io/angr.html#module-angr.calling_conventions)对象作为`cc`的参数来实现
+
+此外对于上述的构造器，也有其他的选项，见 [project.factory](#https://api.angr.io/angr#angr.factory.AngrObjectFactory)
 
 #### 内存交互的底层接口
 
 除了使用**state.mem**外，可以用更底层的接口**state.memory**，并使用**store**和**load**方法交互
 
 ```python
-s = proj.factory.blank_state()
-s.memory.store(0x4000, s.solver.BVV(0x0123456789abcdef0123456789abcdef, 128))
-print s.memory.load(0x4004, 6) # load-size is in bytes
-
-输出：
+>>> s = proj.factory.blank_state()
+>>> s.memory.store(0x4000, s.solver.BVV(0x0123456789abcdef0123456789abcdef, 128))
+>>> s.memory.load(0x4004, 6) # load-size is in bytes
 <BV48 0x89abcdef0123>
 ```
 
@@ -1045,12 +1150,12 @@ print s.memory.load(0x4004, 6) # load-size is in bytes
 可以使用**arch.memory_endness**或**state.arch.memory_endness**获取当前字节序
 
 ```python
-import archinfo
-s.memory.load(0x4000, 4, endness=archinfo.Endness.LE) #使用littleendian
-
-输出：
-<BV32 0x67453201>
+>>> import archinfo
+>>> s.memory.load(0x4000, 4, endness=archinfo.Endness.LE)
+<BV32 0x67452301>
 ```
+
+对于寄存器对象，也有一个底层的接口 `state.registers` 可以存取，并且与 `state.memory` 提供的访问接口类似，但因为涉及IR，这里不深入
 
 #### State属性
 
@@ -1091,23 +1196,23 @@ state.history存放了程序运行路径中的一些数据。且该属性是个�
 
 ```python
 state.history.bbl_addrs
-state.history.recent_bbl_addrs			#上一次执行所经过的所有基本块地址
-state.history.parent.recent_bbl_addrs	#上上次执行的所有基本块地址
+state.history.recent_bbl_addrs            #上一次执行所经过的所有基本块地址
+state.history.parent.recent_bbl_addrs    #上上次执行的所有基本块地址
 
-for addr in state.history.bbl_addrs:	#打印所有trace基本块的地址
+for addr in state.history.bbl_addrs:    #打印所有trace基本块的地址
     print hex(addr)
 ```
 
 ###### history保存的数据
 
 ```python
-history.descriptions	#每轮执行到该状态时的描述（存疑
-history.bbl_addrs		#基本块地址列表
-history.jumpkinds		#每次控制流转移执行的处理方式列表，作为VEX枚举字符串给出
-history.guards			#记录每次转移条件的列表
-history.events			#记录了程序的一些事件，如弹出msgbox，或符号跳转条件等
-history.actions			#一般为空，但若指定了angr.options.refs，将返回一个记录
-						#内存、寄存器等信息的log
+history.descriptions    #每轮执行到该状态时的描述（存疑
+history.bbl_addrs        #基本块地址列表
+history.jumpkinds        #每次控制流转移执行的处理方式列表，作为VEX枚举字符串给出
+history.guards            #记录每次转移条件的列表
+history.events            #记录了程序的一些事件，如弹出msgbox，或符号跳转条件等
+history.actions            #一般为空，但若指定了angr.options.refs，将返回一个记录
+                        #内存、寄存器等信息的log
 ```
 
 ##### callstack插件
@@ -1115,10 +1220,10 @@ history.actions			#一般为空，但若指定了angr.options.refs，将返回�
 类似history，是个链表，但不提供迭代器方法，可以使用**state.callstack**作为迭代器
 
 ```python
-callstack.func_addr			#当前执行函数的地址
-callstack.call_site_addr	#调用该函数的基本块地址
-callstack.stack_ptr			#esp-ebp
-callstack.ret_addr			#返回地址
+callstack.func_addr            #当前执行函数的地址
+callstack.call_site_addr    #调用该函数的基本块地址
+callstack.stack_ptr            #esp-ebp
+callstack.ret_addr            #返回地址
 ```
 
 #### 更多关于IO的信息：文件、文件系统、socket
@@ -1131,7 +1236,7 @@ callstack.ret_addr			#返回地址
 
 ```python
 s = proj.factory.blank_state()
-s1 = s.copy()			#对初始状态s复制了两份副本
+s1 = s.copy()            #对初始状态s复制了两份副本
 s2 = s.copy()
 
 s1.mem[0x1000].uint32_t = 0x41414141
@@ -1149,28 +1254,27 @@ s2.mem[0x1000].uint32_t = 0x42424242
 
 # this is now an expression that can resolve to "AAAA" *or* "BBBB"
 aaaa_or_bbbb = s_merged.mem[0x1000].uint32_t
+# 这里合并之后，0x1000处的内存可能有两种值，AAAA或BBBB
 ```
-
-
 
 #### 本节介绍的模块与方法
 
 ##### SimState
 
 ```python
-state.mem[].type	#取内存地址，type指定了数据类型，如uint64_t
-state.mem[].type.resolved	#取内存值
-state.regs.xxx		#访问寄存器
+state.mem[].type    #取内存地址，type指定了数据类型，如uint64_t
+state.mem[].type.resolved    #取内存值
+state.regs.xxx        #访问寄存器
 
 state.step()
 
-state.posix.stdin.load(0,state.posix.stdin.size)	#获取对标准输入的引用
+state.posix.stdin.load(0,state.posix.stdin.size)    #获取对标准输入的引用
 
 state.mem
 state.memory.store
 state.memory.load
 
-state.options		#指定state的属性，具体属性列表见附录
+state.options        #指定state的属性，具体属性列表见附录
 
 state.globals
 
@@ -1180,14 +1284,14 @@ state.history
 ##### 初始的执行状态
 
 ```python
-.entry_state()		#构造一个准备执行main函数的状态
-.blank_state()		#构造一个未初始化的状态，所有对未初始化地址的访问被视作一个符号变量
-.full_init_state()	#构造一个执行程序初始化工作前的状态，即链接器等初始化工作还没执行时的状态
-.call_state()		#构造一个准备执行给定函数的状态
+.entry_state()        #构造一个准备执行main函数的状态
+.blank_state()        #构造一个未初始化的状态，所有对未初始化地址的访问被视作一个符号变量
+.full_init_state()    #构造一个执行程序初始化工作前的状态，即链接器等初始化工作还没执行时的状态
+.call_state()        #构造一个准备执行给定函数的状态
     .call_state(addr,arg1,arg2...)
-    				#如果需要使用指针传入一块内存，得以如下方法给出arg参数
-        	angr.PointerWrapper("point to me!")
-            		#可以通过cc参数传入SimCC类指定调用约定
+                    #如果需要使用指针传入一块内存，得以如下方法给出arg参数
+            angr.PointerWrapper("point to me!")
+                    #可以通过cc参数传入SimCC类指定调用约定
 ```
 
 参数：
@@ -1212,6 +1316,188 @@ while True:
 state1,state2 =  succ.successors
 ```
 
+### Simulation Managers 模拟管理器
+
+模拟管理器用于控制符号执行时同时产生的一系列状态，提供了一些搜索策略来探索程序的状态空间。其中状态被组织为 stashes ，可以对该对象应用单步执行、筛选、合并、移动等操作
+
+最常见的stash类型是 `active` ，包含了大多数操作，初始化一个模拟管理器后的state默认存放的stash类型即为active
+
+#### 步进
+
+模拟管理器最基本的操作就是通过 `.step()` 遍历一个bbl中给定stash的所有状态
+
+```python
+>>> import angr
+>>> proj = angr.Project('examples/fauxware/fauxware', auto_load_libs=False)
+>>> state = proj.factory.entry_state()
+>>> simgr = proj.factory.simgr(state)
+>>> simgr.active
+[<SimState @ 0x400580>]
+
+>>> simgr.step()
+>>> simgr.active
+[<SimState @ 0x400540>]
+```
+
+stash模型真正的能力是当遇到了符号化的条件分支，两种可能的后续状态都会出现在stash中，而我们可以同时对它们采取步进操作
+
+此外，可以直接使用 `.run()` 使得程序运行到没有能够继续步进执行的地方
+
+```python
+# Step until the first symbolic branch
+>>> while len(simgr.active) == 1:
+...    simgr.step()
+
+>>> simgr
+<SimulationManager with 2 active>
+>>> simgr.active
+[<SimState @ 0x400692>, <SimState @ 0x400699>]
+
+# Step until everything terminates
+>>> simgr.run()
+>>> simgr
+<SimulationManager with 3 deadended>
+```
+
+这里到达了三个deadend状态。当一个状态无法产生任何后续状态时，比如运行到exit系统调用，则模拟管理器会将其从active stash移动到deadend stash
+
+#### Stash管理
+
+一个模拟管理器中包含了多个stash，可以对这几个stash进行操作
+
+* 在stash间移动state
+  
+  ```python
+  >>> simgr.move(from_stash='deadended', to_stash='authenticated', filter_func=lambda s: b'Welcome' in s.posix.dumps(1))
+  >>> simgr
+  <SimulationManager with 2 authenticated, 1 deadended>
+  ```
+  
+  这里创建了一个新的stash，名为authenticated，并将deadended stash中所有在stdout中含有“Welcome”的state（由filter_func指定）移动到该stash
+
+* 遍历stash
+  
+  每个stash都是个列表，所以可以直接遍历。也可以用一些方法来遍历，主要分为两类
+  
+  * `one_<name>` 返回stash中对应的第一个state
+  
+  * `mp_<name>` 返回stash的[mulpyplexed](https://github.com/zardus/mulpyplexer)对象
+  
+  ```python
+  >>> for s in simgr.deadended + simgr.authenticated:
+  ...     print(hex(s.addr))
+  0x1000030
+  0x1000078
+  0x1000078
+  
+  >>> simgr.one_deadended
+  <SimState @ 0x1000030>
+  >>> simgr.mp_authenticated
+  MP([<SimState @ 0x1000078>, <SimState @ 0x1000078>])
+  >>> simgr.mp_authenticated.posix.dumps(0)
+  MP(['\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00',
+      '\x00\x00\x00\x00\x00\x00\x00\x00\x00S\x80\x80\x80\x80@\x80@\x00'])
+  ```
+
+* 其他方法，如step run等都可以接受一个参数 `stash` ，指定执行操作的对象
+
+#### Stash类型
+
+| Stash类型       | 描述                                                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| active        | 默认包含了哪些将要执行步进操作的状态                                                                                                        |
+| deadended     | 当一个state无法执行下去时会保存在该stash，包括遇到无效指令、无效程序指针、后续状态不可达等                                                                        |
+| pruned        | 若指定了 LAZY_SOLVES 参数，则程序除非在必要时不会检查是否满足约束。当发现当前state为unsat时，会回溯history以确定具体转变为unsat的地方，并将之后的所有状态放到该stash中（显然这些状态也必然是unsat的） |
+| unconstrained | 若指定了 save_unconstrained 参数，则将那些被判定为unconstrained的状态保存在该stash（如程序指针被用户数据或其他符号值控制）                                          |
+| unsat         | 若指定了 save_unsat 参数，则将那些unsat的状态放在该stash                                                                                   |
+
+还有不是stash，但是也是state列表的对象errored 。若执行时遇到错误，则会被包装为 ErrorRecord 对象，并加入errored列表。可以使用`.error`属性查看其错误类型，`.state`查看对应的state。此外可以使用`.debug()`方法来调试
+
+#### 简单的路径探索
+
+符号执行中最基础的操作就是找到到达某个地址的state，而忽略其他的state。可以使用`.explore()`方法。
+
+##### find参数
+
+用于指定路径搜索的结束条件，可以是
+
+* 一个地址，当到达地址对应的指令则停止执行
+
+* 一个地址列表，与上面类似
+
+* 一个回调函数，传入的参数是当前的state，而函数返回是否停止执行
+
+当一个state满足find指定的条件，则会被放入名为`found`的stash
+
+##### avoid参数
+
+格式与上述类似，当state满足条件时会被放入名为`avoided`的stash
+
+##### num_find参数
+
+指定在explore返回前应该找到几个满足条件的state，默认为1
+
+#### 路径探索算法
+
+当angr搜索程序的状态空间时，默认的方法是类似BFS，但提供了很多方法可以调用，如DFS。甚至可以自定义搜索算法
+
+使用 `simgr.use_technique(tech)` 指定算法
+
+下面是几种内建算法
+
+* DFS  深度优先搜索，同一时刻只有一个状态被激活并运行，剩下的状态被放在名为`deferred`的stash，直到激活的状态变为deadend才会遍历下一个
+
+* Explorer  就是`.explore()`调用的方法，允许指定find和avoid参数
+
+* LengthLimiter  限定某个状态经过的程序路径长度
+
+* LoopSeer  若某个循环运行了太多次，会自动将它产生的状态放入名为`spinning`的stash，直到其他状态遍历完之后再回来遍历这些由循环导致的路径爆炸产生的状态
+
+* ManualMergepoint  标记一个地址为merge point，当一个状态到达这个地址时会被保存，而若其他状态在timeout时间内也到达该地址，则这些状态会被merge
+
+* MemoryWatcher  监控内存占用，若运行太慢则会中断explore
+
+* Oppologist  "operation apologist"，这个功能主要针对angr不支持的指令。当遇到不支持指令时，angr会将所有输入实例化，并调用unicorn来模拟执行这些输入作用于该指令的结果。从而使得符号执行不会被类似指令影响
+
+* Spiller  若产生了太多状态，这项技术可以将一些状态暂存于磁盘
+
+* Threading  对步进过程进行线程化，这项技术大多数时候不会加速太多，因为python解释器本身有全局锁。但若速度的瓶颈在于一些native代码（如unicorn z3 libvex等），则可以用该技术加速
+
+* Tracer  该技术可以让符号执行沿着某个trace文件的路径运行
+
+* Veritesting  是[这篇论文](https://users.ece.cmu.edu/~dbrumley/pdf/Avgerinos%20et%20al._2014_Enhancing%20Symbolic%20Execution%20with%20Veritesting.pdf)所描述的技术的实现，用于自动识别一些可用的merge point，从而加速符号执行
+
+#### 本节介绍的模块与方法
+
+TODO
+
+### Execution Engines  执行引擎
+
+当我们进行步进操作时，angr使用一系列的引擎来模拟执行，下面为默认的执行引擎列表，angr的执行处理顺序如下
+
+* 当执行使程序进入无法继续执行的状态，调用failure engine
+
+* 当执行调用了syscall，则使用syscall engine处理
+
+* 若当前地址为hook地址，调用hook engine
+
+* 若当前没有符号化的数据，且`UNICORN`选项开启，则调用unicorn engine
+
+* 其他情况下，调用VEX engine
+
+##### SimSuccessors
+
+是`.step()`返回的类，该类目的是对successor的属性进行简单分类，这些属性有：
+
+| 属性         | 条件  | 指令指针 | 描述  |
+| ---------- | --- | ---- | --- |
+| successors |     |      |     |
+|            |     |      |     |
+|            |     |      |     |
+|            |     |      |     |
+
+
+
 ## 附录
 
 ### State属性目录
@@ -1229,4 +1515,3 @@ state1,state2 =  succ.successors
 #### 属性集合
 
 使用angr.options.xxx指定
-

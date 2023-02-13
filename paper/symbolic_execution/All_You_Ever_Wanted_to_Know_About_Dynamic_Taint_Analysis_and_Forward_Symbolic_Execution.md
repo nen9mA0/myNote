@@ -48,6 +48,7 @@
 下面使用SimpIL定义一些常用语句
 
 格式为
+
 $$
 \frac{ 实际操作 }{ 影响的context \vdash 操作名 ⇓ 影响的变量 }
 $$
@@ -58,22 +59,22 @@ $$
 
 下面的规则其实不难，横线上方表示该表达式具体的操作，横线下方表示该表达式对于context的影响
 
-
-
 例如
+
 $$
 \frac{µ, ∆ \vdash e_1 ⇓ v_1 \ \ µ, ∆ \vdash e_2 ⇓ v_2 \ \  v' = v_1 ◇_b v_2}{µ, ∆ \vdash e_1 ◇_b e_2 ⇓ v'}
 $$
+
 上方µ ∆代表当前的内存和变量状态，所以一般都会有；e1 ⇓ v1 和 e2 ⇓ v2 表示，将表达式e1和e2分别赋值给v1和v2，最后将v1 op v2赋值给v'（这里先赋值给临时变量v1 v2主要是因为在语法规定里不能直接用表达式作为操作数，这应该主要是为了简化）。
 
 下方µ ∆含义相同，e1 op e2是该操作的名字（也就是说，该操作显示出来是e1 op e2，中间变量v1和v2只是在具体操作中使用的）
 
-
-
 另一种表示方法例如
+
 $$
 \frac{\mu,\Delta \vdash e \Downarrow v_1 \ \ \iota = \Sigma[v_1]}{\Sigma,\mu,\Delta,pc,goto \ e \leadsto \Sigma,\mu,\Delta,v_1,\iota}
 $$
+
 这种表示方法更为完整，记录下了所有context的变换，一般用于跳转语句等改变如pc等的表示
 
 上方µ ∆含义相同，v1作为临时变量接受表达式e的值，并以其来访问Σ（程序语句的集合）。
@@ -91,6 +92,7 @@ $$
 ##### LOAD
 
 load，从内存v1处加载一个值
+
 $$
 \frac{µ, ∆ \vdash e ⇓ v_1  \ \   v = \mu [v_1]}{ µ, ∆ \vdash load \ e ⇓ v }
 $$
@@ -98,6 +100,7 @@ $$
 ##### VAR
 
 var，表示变量声明
+
 $$
 \frac{  }{ µ, ∆ \vdash var ⇓ \Delta[var] }
 $$
@@ -105,6 +108,7 @@ $$
 ##### UNOP
 
 表示一元运算
+
 $$
 \frac{µ, ∆ \vdash e ⇓ v \ \ v' = ◇_uv}{µ, ∆ \vdash ◇_ue ⇓ v'}
 $$
@@ -112,6 +116,7 @@ $$
 ##### BINOP
 
 表示二元运算
+
 $$
 \frac{µ, ∆ \vdash e_1 ⇓ v_1 \ \ µ, ∆ \vdash e_2 ⇓ v_2 \ \  v' = v_1 ◇_b v_2}{µ, ∆ \vdash e_1 ◇_b e_2 ⇓ v'}
 $$
@@ -119,6 +124,7 @@ $$
 ##### CONST
 
 表示定义常量
+
 $$
 \frac{}{µ, ∆ \vdash v ⇓ v}
 $$
@@ -126,6 +132,7 @@ $$
 ##### ASSIGN
 
 表示赋值
+
 $$
 \frac{µ, ∆ \vdash e ⇓ v \ \ \Delta^{'} = \Delta[ var \leftarrow v ] \ \ \iota = \Sigma[pc+1] }{\Sigma,\mu,\Delta,pc,var := e \leadsto \Sigma,\mu,\Delta^{'},pc+1,\iota}
 $$
@@ -169,13 +176,12 @@ x := 2 * get_input(.)
 ```
 
 下面展示当get_input的输入为20时的SimpIL
+
 $$
 \frac{\frac{\frac{}{\mu,\Delta \vdash 2 \Downarrow 2} CONST \ \ \frac{20 \ is \ input}{\mu, \Delta \vdash get\_input() \Downarrow 20 } \ \  INPUT \ \ v' = 2*20}{\mu, \Delta \vdash 2*get\_input() \Downarrow 40} BINOP \ \  \Delta' = \Delta[x \leftarrow 40] \ \ \iota = \Sigma[pc+1]}{\Sigma, \mu, \Delta, pc, x := 2 * get\_input() \leadsto \Sigma, \mu, \Delta', pc+1, \iota}
 $$
 
 注意这里上方是三个IL的嵌套，分别为CONST（定义一个常量2），INPUT（接受输入），BINOP（乘法）
-
-
 
 #### 语言的讨论
 
@@ -225,6 +231,7 @@ $$
 #### 动态污点分析语法
 
 为了使得SIMPIL可以描述动态污点分析的传播规则，对其修改如下
+
 $$
 \begin{aligned}
 taint \ \ t &= T | F
@@ -238,9 +245,8 @@ value &= <v, t>
 \tau_{\mu} &= Maps \ addresses \ to \ taint \ status
 \end{aligned}
 $$
+
 这里为了记录污点的状态，引入了两个记号， $\tau_{\Delta}$ 用于记录当前变量的污点状态， $\tau_{\mu}$ 一个用于记录内存的污点状态
-
-
 
 下面的污点传播规则由两部分组成，一部分与先前SIMPIL中的规则基本相同（即被<>框起来的第一部分），一部分为污点传播规则（即被<>框起来的第二部分）
 
@@ -368,15 +374,15 @@ $$
 
 下表展示了一个典型的入侵检测系统的动态污点规则，被称为 **tainted jump policy**
 
-| Component                                                    | Policy Check   |
-| ------------------------------------------------------------ | -------------- |
+| Component                                                           | Policy Check   |
+| ------------------------------------------------------------------- | -------------- |
 | $P_{input} (\cdot) ,\ P_{bincheck}(\cdot) ,\  P_{memcheck}(\cdot) $ | T              |
-| $P_{const}()$                                                | F              |
-| $P_{unop}(t), \ P_{assign}(t)$                               | t              |
-| $P_{binop}(t_1, t_2)$                                        | $t_1 \vee t_2$ |
-| $P_{mem}(t_a, t_v)$                                          | $t_v$          |
-| $P_{condcheck}(t_e, t_a)$                                    | $\neg t_a$     |
-| $P_{gotocheck}(t_a)$                                         | $\neg t_a$     |
+| $P_{const}()$                                                       | F              |
+| $P_{unop}(t), \ P_{assign}(t)$                                      | t              |
+| $P_{binop}(t_1, t_2)$                                               | $t_1 \vee t_2$ |
+| $P_{mem}(t_a, t_v)$                                                 | $t_v$          |
+| $P_{condcheck}(t_e, t_a)$                                           | $\neg t_a$     |
+| $P_{gotocheck}(t_a)$                                                | $\neg t_a$     |
 
 该系列规则的目的在于防止程序受到控制流劫持的攻击，原理就是跟踪是否有输入的值会覆盖到控制流的值，如返回地址或函数指针
 
@@ -398,7 +404,7 @@ goto y
 
 上述污点规则并不适用于所有的应用，比如P_mem规则没有考虑到给指示内存地址的变量打上污点，因此可能错过一些可能的攻击行为
 
-####  动态污点分析的挑战和机遇
+#### 动态污点分析的挑战和机遇
 
 使用动态污点分析时主要有下列几个挑战
 
@@ -429,24 +435,22 @@ goto y
 
 一个解决方案是使用下面的规则
 
-| Policy            | Substitutions                                                |
-| ----------------- | ------------------------------------------------------------ |
-| Tainted Value     | $P_{mem}(t_a, t_v) \equiv t_v$                               |
-| Tainted Addresses | $P_{mem}(t_a, t_v) \equiv t_a \lor t_v$                      |
-| Control Dependent | Not possible                                                 |
+| Policy            | Substitutions                                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------------------------- |
+| Tainted Value     | $P_{mem}(t_a, t_v) \equiv t_v$                                                                          |
+| Tainted Addresses | $P_{mem}(t_a, t_v) \equiv t_a \lor t_v$                                                                 |
+| Control Dependent | Not possible                                                                                            |
 | Tainted Overflow  | $P_{bincheck}(t_1, t_2, v_1, v_2, ◇_b) \equiv (t_1, \lor t_2) \Rightarrow \neg  overflows(v_1 ◇_b v_2)$ |
 
 * 这里对于内存操作的污点规则分为两部分，Tainted Value与先前一样，根据目的地址的值来确定是否需要打上污点。Tainted Addresses则只要目的地址和该地址的值有一个为污点就会为v打上污点
-
+  
   但这种方案同样有问题，如tcpdump中，一个网络包根据第一个字节确定该包的类型，并以此为index来确定调用的函数。因此若使用了上述污点传播规则，则所有类似的程序都会被Overtaint，或是被入侵检测程序误报。类似的情况还有switch结构
-
+  
   因此上述方案的选择，若跟踪内存地址可能带来overtaint，不跟踪则可能带来undertaint
 
 * 这里关于Control Dependent的扩展是不可实现的，原因见 [Control-flow taint](#Control-flow taint) 
 
 * 最后一个扩展是解决如整数溢出的问题的，其对计算后是否产生了溢出进行了判断
-
-
 
 ##### Control-flow taint
 
@@ -454,20 +458,16 @@ goto y
 
 一般来说，我们称一条语句s2是control-dependent的，当语句s2是否执行取决于语句s1的结果
 
-
-
 **例子**
 
 ```
 x := get_input()
 if x = 1 then goto 3 else goto 4
-	y := 1
+    y := 1
 z := 42
 ```
 
 如上例，称变量y是control-dependent on line 2的，而z不是control-dependent的
-
-
 
 对于动态污点分析来说，若不计算control dependencies（控制流依赖），就无法确定control-flow based taint（基于控制流的污点），即整个污点分析可能是undertaint的。但不幸的是，单纯的动态污点分析并不能计算控制流依赖，因为每次程序运行的时候只会走一个分支，自然无法直接计算出走不同分支时的污点。
 
@@ -573,8 +573,6 @@ if x-5 == 14 then goto 3 else goto 4
 
 符号内存地址可能存在别名问题，即两个符号地址实际上引用的是同一个地址，如
 
-
-
 ```
 store(addr1, v)
 z = load(addr2)
@@ -582,21 +580,21 @@ z = load(addr2)
 
 若addr1==addr2，则v会被加载入z；若不等，则不会。最坏情况是两者有时相等有时不等
 
-
-
 有几种解决方法
 
 * 基于一个不准确的假设，将所有的符号地址移除，换为标量。如Vine会将上例改写为
-
+  
   ```
   mem_addr1 = v
   z = mem_addr2
   ```
 
 * 将其交给SMT处理。这里需要注意：使用SMT解决该问题时，每次内存发生改变时都应视为不同的状态（公式中应采取不同的命名）。如上例会被转换为
+  
   $$
   mem_1 = (mem_0 \ with \ mem_0[addr_1] = v) \land z = mem_1[addr_2]
   $$
+  
   注意这里mem0因为进行了一次赋值，所以结果需要用mem1表示，因为内存状态发生了改变
 
 * 进行别名分析  别名分析采用静态分析技术。但对于前向符号执行常用的几个领域：test-case generation, fuzzing, malware analysis等，前向符号执行的优势在于它可以在运行时（runtime）执行，因此加入静态分析并不明智
@@ -619,8 +617,6 @@ while(3^n + 4^n == 5^n) {n++; ...}
 
 我们知道只有当n=2时才满足，但符号执行引擎不知道，所以会在第一次循环加入 3^n + 4^n == 5^n，第二次循环加入 3^(n+1) + 4^(n+1) == 5^(n+1)
 
-
-
 因此一般符号执行引擎会指定一个循环次数的上界，若到达该上界则选择另一条路径
 
 ###### Path Selection Problem的解决方案
@@ -628,7 +624,7 @@ while(3^n + 4^n == 5^n) {n++; ...}
 * 深度优先搜索  即在上述的程序状态树中执行深度优先搜索，这种方法的缺点如上所述，若不指定最大循环次数则会卡在循环中
 
 * Concolic Testing  这种方式是动态执行和前向符号执行混合的方式，其先记录一个实际执行的trace，此后符号执行沿着该trace执行。此外，分析器会选择性地根据各个分支的条件，生成执行其他路径的输入。
-
+  
   此外，因为前向符号执行太慢，因此Concolic Testing的一个变形使用单一符号执行（single symbolic execution）来产生输入值。这种方法被称为generational search
 
 * Random Path  随机地探索路径。其中未被探索过的路径会被赋以更高的权重，防止符号执行卡死
@@ -644,17 +640,17 @@ while(3^n + 4^n == 5^n) {n++; ...}
 * 使用Concolic analysis（动态执行+符号执行，如CUTE）来发现间接跳转的指令。符号执行只跟踪那些在动态执行中跳转到的地址。缺点是覆盖率不够
 
 * 使用SMT求解，如当前的跳转地址表达式为e，此时的符号约束式集合为Π，则使用SMT求解 $\Pi \land e$ 。求解得到的答案n即其中一个跳转的目的地址。若要发现其他路径，可以使用SMT求解 $\Pi \land e \land \neg n$ 。
-
+  
   虽然理论上来说这种方法是最好的方案，但从效率上来看较低，且SMT无法像静态分析一样从程序结构本身获取信息。
 
 * 使用静态分析  源码级静态分析使用指针分析来寻找可能的跳转地址，二进制级的静态分析则是推断哪些地址可能被跳转的表达式引用（如通过解析switch结构的跳转表等）
-
+  
   ```
   bytes := get_input()
   p := load(functable+bytes)
   goto p
   ```
-
+  
   因为functable可以在静态分析中得到，且该跳转表的大小固定，由此可以得到各个跳转地址
 
 ##### Handling System and Library Calls
@@ -673,9 +669,9 @@ while(3^n + 4^n == 5^n) {n++; ...}
 * 约束式数量指数级增长  原因同上
 
 * 即使在同一条程序路径上，一条约束式的长度可能因为变量替换而指数级增长。这是因为在构造约束式的时候，构造器会将其中间变量展开，见下例
-
+  
   考虑下述程序
-
+  
   ```
   x := get_input()
   x := x + x
@@ -691,20 +687,18 @@ while(3^n + 4^n == 5^n) {n++; ...}
 
 此外，因为这里有3条分支语句，所以最终会产生8条可能的执行路径
 
-
-
 解决方法如下：
 
 * 提升算力，路径探索和约束式求解的过程可以并行化，因此可以加快求解速度
 
 * 约束式长度增长的问题可以通过添加多个中间表达式的方法来解决，如上例的约束式可以写成
-
+  
   $x_1 = x_0 + x_0 \ \land \  x_2 = x_1 + x_1 \ \land \ x_3 = x_2 + x_2$
 
 * 识别公式间的冗余，并化简。如上例，3个分支语句fork出的8个context中，都会包括前四条语句产生的公式。可以通过启发式算法来识别出一些通用的公式，或通过post hoc分析来优化公式，从而减小公式长度
 
 * 识别独立的子表达式。这种技术即提取一系列表达式中共有的表达式，这样可以通过缓存这些子表达式的计算结果来加速符号执行速度
-
+  
   如上例中，对x的计算与分支条件无关，因此KLEE只会求解一次该表达式，并将其返回值用在8个fork出来的路径上。
 
 * 使用最弱前提假设来计算公式，在这种假设下产生的公式只需要最多O(n^2)的时间和O(n^2)的空间。该假设下计算表达式是由后往前的。具体可以看引文提到的论文
@@ -713,56 +707,50 @@ while(3^n + 4^n == 5^n) {n++; ...}
 
 对于不同类型的程序，可能有些输入应该被视为符号表达式而有些不需要。如网络程序的服务器配置一般不需要视为表达式，因为攻击者一般无法修改配置文件，因此可以直接视为具体值。而网络程序接收到的包则应该视为符号表达式。这种执行方式因为将一些输入作为具体值执行，因此效率较高
 
-
-
-
-
 ### 疑问
 
 #### 疑问1
 
 为什么这里的污点传播规则为 $\neg t$ ，意思是如果goto的目的地址有污点则在跳转后取消污点么，但反过来是什么意思（原来goto的目的地址没有污点，则跳转后要打上污点么？有点怪）
 
-
-
 ### 一些可能感兴趣的引文
 
 * 污点分析工具TEMU  符号执行工具Vine
-
+  
   BitBlaze binary analysis project  http://bitblaze.cs.berkeley.edu, 2007
 
 * 污点分析工具TaintCheck 
-
+  
   James Newsome and Dawn Song. Dynamic taint analysis for automatic detection, analysis, and signature generation of exploits on commodity software. In Proceedings of the Network and Distributed System Security Symposium, February 2005  
 
 * 如何识别用户输入对一个函数的输出会有多大的影响。这里是在讨论污点分析在遇到如哈希函数一类，输入会影响输出但并不能控制输出的情况应该如何识别
-
-  James Newsome, Stephen McCamant, and Dawn Song. Measuring channel capacity to distinguish undue influence. In Proceedings of the ACM Workshop on Programming Languages and Analysis for Security, 2009
   
-* KLEE
+  James Newsome, Stephen McCamant, and Dawn Song. Measuring channel capacity to distinguish undue influence. In Proceedings of the ACM Workshop on Programming Languages and Analysis for Security, 2009
 
+* KLEE
+  
   Cristian Cadar, Vijay Ganesh, Peter Pawlowski, David Dill, and Dawson Engler. EXE: A system for automatically generating inputs of death using symbolic execution. In Proceedings of the ACM Conference on Computer and Communications Security, October 2006.  
   
   Cristian Cadar, Daniel Dunbar, and Dawson Engler. Klee: Unassisted and automatic generation of high-coverage tests for complex systems programs. In Proceedings of the USENIX Symposium on Operating System Design and Implementation, 2008  
-  
+
 * DART
-
+  
   Patrice Godefroid, Nils Klarlund, and Koushik Sen. DART: Directed automated random testing. In Proceedings of the ACM Conference on Programming Language Design and Implementation, 2005  
-  
+
 * CUTE
-
+  
   K. Sen, D. Marinov, and G. Agha. CUTE: A concolic unit testing engine for C. In Proceedings of the joint meeting of the European Software Engineering Conference and the ACM Symposium on the Foundations of Software Engineering, \2005.  
-  
+
 * Generational search
-
+  
   Patrice Godefroid, Michael Levin, and David Molnar. Automated whitebox fuzz testing. In Proceedings of the Network and Distributed System Security Symposium, February 2008  
-  
+
 * 似乎是关于二进制静态分析如何定位间接跳转地址的
-
-  Gogul Balakrishnan. WYSINWYX: What You See Is Not What You eXecute. PhD thesis, Computer Science Department, University of Wisconsin at Madison, August 2007.  
   
+  Gogul Balakrishnan. WYSINWYX: What You See Is Not What You eXecute. PhD thesis, Computer Science Department, University of Wisconsin at Madison, August 2007.  
+
 * weakest precondition
-
+  
   E.W. Dijkstra. A Discipline of Programming. Prentice Hall, Englewood Cliffs, NJ, 1976
-
+  
   Ivan Jager and David Brumley. Efficient directionless weakest preconditions. Technical Report CMU-CyLab-10-002, Carnegie Mellon University CyLab, February 2010.  

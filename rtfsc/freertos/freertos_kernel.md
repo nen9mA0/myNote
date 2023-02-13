@@ -8,8 +8,6 @@
 
 ##### StackType_t
 
-
-
 ##### BaseType_t
 
 默认整数类型
@@ -18,8 +16,6 @@
 
 默认无符号整数类型
 
-
-
 ### 临界区
 
 #### 配置
@@ -27,8 +23,6 @@
 ##### portSET_INTERRUPT_MASK_FROM_ISR
 
 若定义了该函数，则使用 [portSET_INTERRUPT_MASK_FROM_ISR](#portSET_INTERRUPT_MASK_FROM_ISR) 和 [portCLEAR_INTERRUPT_MASK_FROM_ISR](#portCLEAR_INTERRUPT_MASK_FROM_ISR) 进入和离开临界区，否则使用 [portENTER_CRITICAL](#portENTER_CRITICAL) 和 [portEXIT_CRITICAL](#portEXIT_CRITICAL) 
-
-
 
 #### 函数
 
@@ -72,21 +66,19 @@
 
 #### pxPortInitialiseStack
 
-
-
 根据是否有MPU和溢出检测，分为下列四种定义
 
 ```c
 #if ( portUSING_MPU_WRAPPERS == 1 )
     #if ( portHAS_STACK_OVERFLOW_CHECKING == 1 )
-		// 有MPU，有溢出检测
+        // 有MPU，有溢出检测
         StackType_t * pxPortInitialiseStack( StackType_t * pxTopOfStack,
                                              StackType_t * pxEndOfStack,
                                              TaskFunction_t pxCode,
                                              void * pvParameters,
                                              BaseType_t xRunPrivileged ) PRIVILEGED_FUNCTION;
     #else
-		// 有MPU，无溢出检测
+        // 有MPU，无溢出检测
         StackType_t * pxPortInitialiseStack( StackType_t * pxTopOfStack,
                                              TaskFunction_t pxCode,
                                              void * pvParameters,
@@ -94,13 +86,13 @@
     #endif
 #else /* if ( portUSING_MPU_WRAPPERS == 1 ) */
     #if ( portHAS_STACK_OVERFLOW_CHECKING == 1 )
-		// 无MPU，有溢出检测
+        // 无MPU，有溢出检测
         StackType_t * pxPortInitialiseStack( StackType_t * pxTopOfStack,
                                              StackType_t * pxEndOfStack,
                                              TaskFunction_t pxCode,
                                              void * pvParameters ) PRIVILEGED_FUNCTION;
     #else
-		// 无MPU，无溢出检测
+        // 无MPU，无溢出检测
         StackType_t * pxPortInitialiseStack( StackType_t * pxTopOfStack,
                                              TaskFunction_t pxCode,
                                              void * pvParameters ) PRIVILEGED_FUNCTION;
@@ -134,10 +126,6 @@ CAS操作失败
 #define ATOMIC_COMPARE_AND_SWAP_FAILURE    0x0U
 ```
 
-
-
-
-
 #### 函数
 
 原子操作跟大多数其他库的一致，这里先封装了一层进入和离开临界区的函数，其他函数操作都会先进入临界区，操作完成后离开临界区
@@ -165,7 +153,7 @@ static portFORCE_INLINE uint32_t Atomic_CompareAndSwap_u32( uint32_t volatile * 
 ```
 
 * 与其他CAS一致
-
+  
   ```c
   if(*pulDestination == ulComparand)
       *pulDestination = ulExchange;
@@ -276,8 +264,6 @@ static portFORCE_INLINE uint32_t Atomic_NAND_u32( uint32_t volatile * pulDestina
 static portFORCE_INLINE uint32_t Atomic_XOR_u32( uint32_t volatile * pulDestination,
                                                  uint32_t ulValue );
 ```
-
-
 
 ## 数据结构
 
@@ -480,27 +466,36 @@ typedef xQUEUE Queue_t;
 ```
 
 * pcHead  指向queue存储的首地址
+
 * pcWriteTo  指向queue存储的下一个元素地址
+
 * u
+  
   * xQueue  当该结构是作为一个queue被使用时
   * xSemaphore  当该结构是作为一个信号量被使用时
 
 * xTasksWaitingToSend
+
 * xTasksWaitingToReceive
+
 * uxMessagesWaiting
+
 * uxLength  队列长度
+
 * uxItemSize  队列每个元素的大小
+
 * cRxLock
+
 * cTxLock
+
 * ucQueueType  queue的类型，有如下几种
+  
   * queueQUEUE_TYPE_BASE
   * queueQUEUE_TYPE_SET
   * queueQUEUE_TYPE_MUTEX
   * queueQUEUE_TYPE_COUNTING_SEMAPHORE
   * queueQUEUE_TYPE_BINARY_SEMAPHORE
   * queueQUEUE_TYPE_RECURSIVE_MUTEX
-
-
 
 #### 底层函数
 
@@ -516,10 +511,6 @@ BaseType_t xTaskRemoveFromEventList( const List_t * const pxEventList )
 BaseType_t xQueueGenericReset( QueueHandle_t xQueue,
                                BaseType_t xNewQueue );
 ```
-
-
-
-
 
 #### 中间层函数
 
@@ -553,8 +544,6 @@ BaseType_t xQueueGenericSend( QueueHandle_t xQueue,
                               TickType_t xTicksToWait,
                               const BaseType_t xCopyPosition );
 ```
-
-
 
 #### 顶层函数
 
@@ -595,10 +584,6 @@ BaseType_t xQueueGenericSend( QueueHandle_t xQueue,
 ##### xQueueSend
 
 与上个函数相同
-
-
-
-
 
 ## 主要模块
 
@@ -749,8 +734,6 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
 ```c
 static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB );
 ```
-
-
 
 #### 顶层函数
 
