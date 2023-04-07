@@ -1,5 +1,3 @@
-## SoK: All You Ever Wanted to Know About x86/x64 Binary Disassembly But Were Afraid to Ask
-
 ### Scope of Systematization
 
 #### Functionality
@@ -144,7 +142,7 @@
     
     * 黑23 基于跳转位置与目标位置的距离识别尾调用
     
-    * 黑24 一个尾调用机器目标会横跨多个函数
+    * 黑24 一个尾调用及其目标会横跨多个函数
     
     * 黑25 尾调用不能是一个条件跳转
     
@@ -504,6 +502,488 @@ ghidra选择2作为最小的address table大小，而其他工具都选择了1�
   * ghidra检查调用后的fall-through代码，若这些代码之后会进入非正常的区段（如数据段、不可识别的指令或其他函数），或这段代码被除了jmp外的其他xref引用，ghidra会将这段fall-through代码标记为unsafe的，并认为子函数是不返回的函数。此外，ghidra不会递归更改函数属性，而是直接跑两遍函数分析
 
 ### Evaluation
+
+本文的evaluation部分内容很多
+
+#### Evaluation Setup
+
+##### Benchmarks
+
+选取了部分软件并进行编译，软件中包含很多复杂结构（见附录A）
+
+![](pic/1_6.png)
+
+* 编译器
+  
+  * Linux:  GCC 8.1.0  LLVM-6.0.0
+  
+  * Windows:  VS2015
+
+* 优化选项
+  
+  * Linux:  O0 O2 O3 Os Ofast
+  
+  * Windows:  Od O1 O2 Ox
+
+* 架构
+  
+  * x86
+  
+  * x64
+
+##### Ground Truth
+
+从编译器和一些中间文件提取信息，Linux上使用CCR工具，Windows写在附录B中
+
+##### Tools and Configurations
+
+附录C中包含了所有的工具配置
+
+#### Evaluation Results & Analysis
+
+##### Disassembly
+
+![](pic/1_8.png)
+
+###### Overall Performance
+
+上表列出了每个工具对于不同平台的平均和最小准确率（Precision）和召回率（recall）
+
+* 覆盖率（由召回率表现）
+  
+  * angr和objdump等线性反汇编工具的覆盖率很高
+  
+  * BAP和radare2等递归反汇编工具覆盖率较低
+  
+  * 此外当x64文件的优化等级提升，所有递归反汇编工具的覆盖率都会降低
+
+* 准确率
+  
+  * 递归反汇编准确率普遍高于线性反汇编
+
+###### Use of Heuristics
+
+首先介绍了前文提到的线性反汇编工具PSI当遇到错误的opcode时的heuristic，及其实测时的表现
+
+下表则表现了不同的递归反汇编工具使用不同heuristic时覆盖率的差别
+
+![](pic/1_9.png)
+
+###### Understanding of Errors
+
+![](pic/1_10.png)
+
+上表表示了各个工具FP（将数据误识别为指令）的成因
+
+* 对于线性工具
+  
+  * 将padding或data-in-code误识别为指令
+
+* 对于递归工具
+  
+  * 误识别函数入口
+  
+  * 错过了non-return函数（原文) missing non-returning functions and assuming the calls to them fall through）
+  
+  * 错误解析跳转表
+
+FN（将指令识别为数据）的成因则
+
+* 对于线性工具，主要是由于FP的误识别导致了FN
+
+* 对于递归工具
+  
+  * 主要是没有正确识别函数。关于函数识别的evaluation见下文
+  
+  * 错误解析跳转表
+  
+  * 由于FP导致的FN
+
+##### Symbolization
+
+###### Overall Performance
+
+![](pic/1_11.png)
+
+开源工具覆盖率普遍高于商业工具，本文认为是因为开源工具的策略更激进
+
+而开源工具的准确率也普遍高与商业工具，本文认为有两个原因
+
+* 基于heuristic的检查有局限性
+
+* benchmark中的程序数据段内容普遍较少
+
+###### Use of Heuristics
+
+实验结果表明前面的表中，黑8 黑11和黑13三个heuristic能还原大部分的xref，其他heuristic则可以提高准确率
+
+- 黑8 对比MCSEMA与IDA，MCSEMA将覆盖率由95提高到了98
+
+- 黑9  所有的6百万个xref中，不考虑jump table则没有与该heuristic相违背的
+
+- 黑10 黑11  两个heuristic存在冲突，但两者实际上都不完美
+  
+  - 黑10错过了600个xref
+  
+  - 黑11则是angr中FP的主要来源
+
+- 黑12  可以降低FP但错过了上千个指向函数中间的xref
+
+- 黑13  恢复了12k个data中的xref，但在angr中导致6个FP，ghidra中导致2K+的FP
+
+- 黑14  是ghidra中FN的主要来源
+
+- 黑15  在MCSEMA中产生了3K个FN，因为字符串解析并不完全正确
+
+注：对应heuristic如下
+
+- 白4 排除作为浮点数的数据单元（data unit）
+
+- 黑8 暴力枚举操作数和数据单元
+
+- 黑9 数据中的指针与机器字长相同
+
+- 黑10 数据中指针对齐
+
+- 黑11 数据中的指针或被其他xref引用的指针可能是非对齐的
+
+- 黑12 对代码段的引用只能指向函数开头
+
+- 黑13 扩大数据段的范围（注：应该是为了尽量多地解析xref）
+
+- 黑14 地址表的最小大小为2
+
+- 黑15 将可能被字符串覆盖的指针排除（注：意思应该是，当某个地址被解析成字符串后，其覆盖的范围又可能被解析为指针的情况）
+
+###### Understanding of Errors
+
+![](pic/1_12.png)
+
+由于data中的指针可能是non-aligned的，分别导致angr和ghidra的59%和0.3%的FP
+
+另一个FP的主要原因是当检查xref目标的可用性时，对data段的边界进行了扩大
+
+其他的FP的由于误将数字当作指针
+
+![](pic/1_13.png)
+
+MCSEMA和angr中主要的FN是因为它们排除了与字符串overlap的指针
+
+MCSEMA错过了23.64%指向数据段外的指针
+
+Ghidra则通过假设地址表（黑14）的最小长度和代码指针总是指向函数开头（黑12），分别减少了96.53%和0.33%的FN
+
+##### Function Entry Identification
+
+该测试中加入了NUCLEUS和BYTEWEIGHT
+
+###### Overall Performance
+
+![](pic/1_14.png)
+
+上述结果表示函数识别仍然是一个挑战，如radare2只有小于66%的覆盖率。主要原因是signature-based的函数识别对于不同的优化等级较为敏感
+
+此外准确率相比指令识别也并不高，如angr和bap的准确率
+
+还有三个有趣的发现
+
+* 商业工具在这方面做得更好
+
+* NUCLEUS达到的效果证明了基于CFG连接性的方法的有效性
+
+* 即使BAP内部是使用BYTEWEIGHT进行识别，效果依然没有后者好
+  
+  可能是因为BAP使用预训练的signature，而BYTEWEIGHT则使用了本文的benchmark进行了训练
+
+###### Use of Heuristics
+
+主要使用了两个heuristic
+
+* 使用通用的prologue，或数据挖掘模型识别函数入口
+  
+  ![](pic/1_15.png)
+  
+  该heuristic的引入增加了17.36%的覆盖率，准确率有77.53%，而不同架构和优化等级对该方法也有影响
+  
+  现有的工具使用不同的pattern或model，其中angr和dyninst使用了更激进的方法，使得覆盖率提高，但精度有所降低
+
+* angr将线性扫描中发现的每个代码片段当做函数入口，增加了23%的覆盖率，但降低了26.96%的准确率
+
+###### Understanding of Errors
+
+![](pic/1_16.png)
+
+有些问题是多个工具共有的
+
+* signature-based方法较容易发生误匹配（Dyninst Ghidra-NE Angr-NS BAP）
+
+* 对tail-call识别错误会导致将一个正常跳转误识别为函数入口
+
+* 不正确的反汇编结果会使得call指令指向错误的目标函数
+
+此外，部分工具存在一些特有的情况
+
+* angr的FP中，有78.41%是因为将线性扫描过程中的发现一些代码段作为函数入口
+
+* ghidra有99.94%的FP是由于exception的跳转信息会指向函数的中间
+
+* radare2有93.17%的FP是由于它会将xref当做函数入口处理
+
+![](pic/1_17.png)
+
+一些共有的问题
+
+* 忽略了一些跳转表中的地址
+
+* 无法识别一些tail-call
+
+* 忽略了一些non-return函数
+
+* 误识别的函数与实际的函数发生overlap
+
+* 最后还有很多函数由于既无法被递归下降算法遍历，也不与pattern匹配，导致FN
+
+##### CFG Reconstruction
+
+这一部分主要针对五个目标
+
+* 过程中bbl间的边
+
+* 直接调用的call graph
+
+* 间接跳转/调用
+
+* tail call
+
+* non-return函数
+
+###### Overall Performance
+
+Linux:
+
+![](pic/1_18.png)
+
+Windows:
+
+![](pic/1_19.png)
+
+* 对edge和call graph的还原准确性都较高，且准确性与反汇编的准确性高度相关
+
+* 不同工具对于跳转表的处理效果不一样，总体来说ghidra和dyninst最好，radare2和angr其次
+  
+  此外对于tail call和手写汇编中的间接跳转，ghidra和binary ninja的处理效果较好
+
+* angr ghidra ida和binary ninja支持对间接跳转的解析，具体测试数据可以见论文
+
+* 对于tail call的处理不尽人意
+  
+  此外，上表中工具在低优化等级下tail call识别准确率较低是因为低优化等级很少生成tail call，使得少量的错误就会极大拉低准确率
+
+* non-return函数的识别准确率较高，但覆盖率较差，特别是windows。主要原因是对non-return的函数收集不全
+
+###### Use of Heuristics
+
+跳转表主要使用了三种heuristic
+
+* pattern，效果：Radare2/Ghidra/Dyninst 的覆盖率分别为 85.53%/98.01/99.56%
+
+* dyninst和angr限制了VSA的切片范围，使得很多跳转表边界相关的信息丢失
+
+* ghidra和radare2分别忽略了大于1024和512的跳转表，分别使其错过了51个和2435个跳转表
+
+对于tail call
+
+* radare2依赖检测jump和目的函数间的gap，但阈值很难确定
+  
+  对于本文的benchmark，正常跳转的gap为[0, 0xb5867]，而tail call的gap为[0, 0xb507c5]
+
+* ghidra则是依据jump和目的地址横跨多个函数来检测tail call，覆盖率高达91.29%，但其无法与同一个横跨多区域的正常函数区分，导致了70k个FP
+
+* angr和dyninst使用基于控制流和栈高度的heuristic，但提高覆盖率的同时也产生了FP和FN
+
+###### Understanding of Errors
+
+对于edge的恢复
+
+![](pic/1_20.png)
+
+* 上表说明了FP的主要来源
+
+* FN则主要来源于反汇编覆盖补全
+
+对于call graph
+
+* FP和FN主要来源于反汇编错误
+
+对于jump table，则与具体情况和工具相关
+
+* FN
+  
+  * 依赖使用pattern识别（radare2 ghidra dyninst）
+  
+  * radare2忽略大于512的跳转表
+  
+  * ghidra在VSA中不考虑sub语句，使得关系分析错误，且忽略大于1024的跳转表（ghidra）
+  
+  * angr在VSA中会出现错误或无结果，没有处理sbb语句
+  
+  * dyninst对切片范围进行了限制，且不处理get_pc_thunk
+
+* FP
+  
+  * radare2
+    
+    * 匹配了错误的cmp/sub指令
+    
+    * 或对于索引的处理不考虑cmp/sub指令的影响
+  
+  * dyninst
+    
+    * 不能处理索引存在alias的情况
+    
+    * 不考虑数据类型引入的约束
+    
+    * 对切片范围进行限制
+  
+  * angr
+    
+    * 错误的VSA
+    
+    * 忽略切片中的某些路径
+  
+  * ghidra
+    
+    * 错误处理间接跳转/调用
+    
+    * 在VSA中不考虑sub的影响
+    
+    * 在处理时对索引加上了错误的限制
+    
+    * 将default的路径作为一个入口
+
+对于tail call
+
+* FN
+  
+  * 不考虑tail call使用条件跳转的情况（angr ghidra）
+  
+  * 相邻函数间缺少边界（应该是函数识别引出的问题）（ghidra）
+  
+  * 排除了那些同时作为条件跳转和非条件跳转目的地址的函数（angr）
+  
+  * 对栈高度的计算错误（angr）
+  
+  * 跳转前没有调整栈帧，以及未识别的函数（Dyninst）
+
+* FP
+  
+  * 主要是因为函数入口识别错误
+  
+  * 误将不连续的函数识别为tail call
+  
+  * 形如 `add esp, imm` 的指令，但并没有释放栈帧（Dyninst）
+  
+  * 跳转前没有改变栈的高度（angr）
+
+对于non-returning function
+
+![](pic/1_21.png)
+
+注意这里的fake return指如glibc中的 `_Unwind_Resume` ，虽然含有ret指令，但并不是真的返回caller，而是返回到栈上准备的地址
+
+### Findings
+
+* 如附录A的复杂结构很常见，因此对于这些结构，heuristic是不可或缺的
+
+* 许多heuristic都需要在覆盖率和准确率之间权衡
+
+* 不同工具间是互补的，因为使用heuristic的不同，其适用的范围也不同
+
+* 为了未来反汇编工具的提升，仍需要更深入而广泛的evaluation
+
+### 附录A  Complex Constructs
+
+![](pic/1_7.png)
+
+上表列出了这些结构出现的次数、出现在多少源码中和出现在多少编译后的二进制文件中
+
+### 附录E  Overlap of False Positives and False Negatives
+
+这边对FP和FN发生重复的情况列表说明了
+
+### 附录F  Understanding of Commercial Tools
+
+这边对IDA和Binary Ninja使用的一些算法进行了合理推断
+
+#### Disassembly
+
+两者都使用了递归下降，并使用了一些方法处理code gap
+
+* binary ninja线性扫描没有被反汇编的代码段，并将可以解析的纳入备选的call target。此后将这些地址排序并进行递归下降反汇编
+
+* IDA使用了至少4步处理
+  
+  * 查找一些常见的指令序列
+  
+  * 考虑.eh_frame中引用的地址
+  
+  * 考虑将一些d2c xref中可能的地址作为指令地址
+  
+  * 最后将.text的剩余部分合并为代码或数据
+
+#### Symbolization
+
+这边比较难以确定算法，只能通过一些测试得到以下几个观点
+
+* 两个工具都没使用 黑8 黑10 黑12 这几个heuristic
+
+* binary ninja极少考虑d2c和d2d的xref
+
+* binary ninja中识别的大多数c2d xref都是地址立即数常量
+
+* IDA会试图对c2d xref的数据单元进行符号化，并且接下来会试图对其周围的数据也进行符号化
+
+#### Function Entry Identification
+
+两者都将间接和直接跳转的目的作为函数入口。此外还会使用一些策略
+
+* binary ninja遍历过程间的CFG，并且将bbl相连接的组当做函数。此外也将tail call对象当做函数
+
+* IDA使用至少2步处理
+  
+  * 将.eh_frame中的地址作为函数入口
+  
+  * 考虑将一些d2c xref作为函数入口
+
+#### Indirect Jumps
+
+* binary ninja使用VSA来处理跳转表
+
+* IDA则使用pattern而非VSA来处理
+
+#### Indirect Calls
+
+* binary ninja使用过程中的VSA进行常量传播分析，因此只能对常量目的地址进行解析
+
+* IDA除了能检测上述间接跳转地址，还使用了一些pattern
+
+#### Tail Calls
+
+* binary ninja将跳转目的为当前函数外，且跳转处栈高度为0的跳转视为tail call
+
+* IDA不单独处理tail call
+
+#### Non-returning Functions
+
+两者都使用与Dyninst类似的non-returning库函数列表
+
+### 附录G  Interesting Cases and Test Cases
+
+这里列出了很多特殊的test cases，感觉可以记录一下
+
+![](pic/1_22.png)
+
+![](pic/1_23.png)
 
 ### 感兴趣的论文
 
