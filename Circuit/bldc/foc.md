@@ -1,3 +1,69 @@
+
+
+## 基本原理
+
+无刷电机为了让转子平滑地转动，应该不断地产生一个方向绕轴旋转的磁场
+
+为了产生一个旋转且负载均衡的磁场，最简单的方式是使用三个电磁铁进行矢量控制
+
+![](pic/foc_9.png)
+
+如图，橙色为磁极，E F G分别为三个电磁铁，蓝色为E F G最终合成的磁场方向
+
+此时假设磁感应强度B恒定，方向做匀速圆周运动，则有
+
+$$
+B \vec r = \vec E + \vec F + \vec G
+$$
+
+![](pic/foc_10.png)
+
+
+
+$$
+U_{总} = R I + L \frac{dI}{dt} + U_{反电动势}
+\\
+~
+\\
+U_{总} - U_{反电动势} = R I + L \frac{dI}{dt}
+$$
+
+代入余弦电流
+
+$$
+U_{总} - U_{反电动势} = R I_M cos \omega t - L I_M sin \omega t
+\\
+~
+\\
+U_{总} - U_{反电动势} = \lambda I_M cos(\omega t + \theta)
+$$
+
+![](pic/foc_7.png)
+
+$$
+\left \{
+\begin{aligned}
+A &=  M cos(\omega t - \frac{2 \pi}{3})
+\\
+B &= M cos \  \omega t
+\\
+C &= M cos(\omega t + \frac{2 \pi}{3})
+\end{aligned}
+\right . 
+$$
+
+![](pic/foc_8.png)
+
+$$
+\left \{
+\begin{aligned}
+\alpha &= A - B cos \frac{\pi}{3}- C cos \frac{\pi}{3}
+\\
+\beta &= B sin \frac{\pi}{3} - C sin \frac{\pi}{3}
+\end{aligned}
+\right . 
+$$
+
 ## 架构图
 
 ![](pic/foc_1.png)
@@ -112,8 +178,6 @@ $$
 
 ![](pic/foc_4.png)
 
-
-
 ### 空间电压矢量
 
 <img src="pic/foc_5.png" title="" alt="" width="627">
@@ -144,4 +208,4 @@ http://simplefoc.cn/
 
 [FOC控制算法详解_Dokin丶的博客-CSDN博客_foc控制](https://blog.csdn.net/qq_27575841/article/details/109789125)
 
-
+[FOC算法入门-CSDN博客](https://blog.csdn.net/differently1234/article/details/118084870)
