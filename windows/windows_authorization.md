@@ -3,8 +3,11 @@
 ### C2安全级别要求
 
 * 每个资源必须有对不同用户和用户组间的访问控制
+
 * 内存必须被保护以防其进程释放资源后被其他进程所读取。同样文件系统中的文件在删除后必须防止其被二次读取
+
 * 用户登录时必须以一定方式认证他们，如密码。所有可审核的操作必须标识执行操作的用户。
+
 * 系统管理员必须能够审计与安全相关的事件。且只有经过认证的管理员有权限审计。
 
 * 必须保护系统免受外部干扰或篡改，例如修改正在运行的系统或存储在磁盘上的系统文件。
@@ -44,40 +47,40 @@ ACL是包含多个ACE(access control entries)的列表，每个ACE指定了一�
 
 ##### 相关API
 
-| [**AdjustTokenGroups**](https://msdn.microsoft.com/en-us/library/Aa375199(v=VS.85).aspx) | Changes the group information in an access token.            |
-| ------------------------------------------------------------ | ------------------------------------------------------------ |
-| [**AdjustTokenPrivileges**](https://msdn.microsoft.com/en-us/library/Aa375202(v=VS.85).aspx) | Enables or disables the privileges in an access token. It does not grant new privileges or revoke existing ones. |
-| [**CheckTokenMembership**](https://msdn.microsoft.com/en-us/library/Aa376389(v=VS.85).aspx) | Determines whether a specified SID is enabled in a specified access token. |
+| [**AdjustTokenGroups**](https://msdn.microsoft.com/en-us/library/Aa375199(v=VS.85).aspx)     | Changes the group information in an access token.                                                                                                                      |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [**AdjustTokenPrivileges**](https://msdn.microsoft.com/en-us/library/Aa375202(v=VS.85).aspx) | Enables or disables the privileges in an access token. It does not grant new privileges or revoke existing ones.                                                       |
+| [**CheckTokenMembership**](https://msdn.microsoft.com/en-us/library/Aa376389(v=VS.85).aspx)  | Determines whether a specified SID is enabled in a specified access token.                                                                                             |
 | [**CreateRestrictedToken**](https://msdn.microsoft.com/en-us/library/Aa446583(v=VS.85).aspx) | Creates a new token that is a restricted version of an existing token. The restricted token can have disabled SIDs, deleted privileges, and a list of restricted SIDs. |
-| [**DuplicateToken**](https://msdn.microsoft.com/en-us/library/Aa446616(v=VS.85).aspx) | Creates a new impersonation token that duplicates an existing token. |
-| [**DuplicateTokenEx**](https://msdn.microsoft.com/en-us/library/Aa446617(v=VS.85).aspx) | Creates a new primary token or impersonation token that duplicates an existing token. |
-| [**GetTokenInformation**](https://msdn.microsoft.com/en-us/library/Aa446671(v=VS.85).aspx) | Retrieves information about a token.                         |
-| [**IsTokenRestricted**](https://msdn.microsoft.com/en-us/library/Aa379137(v=VS.85).aspx) | Determines whether a token has a list of restricting SIDs.   |
-| [**OpenProcessToken**](https://msdn.microsoft.com/en-us/library/Aa379295(v=VS.85).aspx) | Retrieves a handle to the primary access token for a process. |
-| [**OpenThreadToken**](https://msdn.microsoft.com/en-us/library/Aa379296(v=VS.85).aspx) | Retrieves a handle to the impersonation access token for a thread. |
-| [**SetThreadToken**](https://msdn.microsoft.com/en-us/library/Aa379590(v=VS.85).aspx) | Assigns or removes an impersonation token for a thread.      |
-| [**SetTokenInformation**](https://msdn.microsoft.com/en-us/library/Aa379591(v=VS.85).aspx) | Changes a token's owner, primary group, or default DACL.     |
+| [**DuplicateToken**](https://msdn.microsoft.com/en-us/library/Aa446616(v=VS.85).aspx)        | Creates a new impersonation token that duplicates an existing token.                                                                                                   |
+| [**DuplicateTokenEx**](https://msdn.microsoft.com/en-us/library/Aa446617(v=VS.85).aspx)      | Creates a new primary token or impersonation token that duplicates an existing token.                                                                                  |
+| [**GetTokenInformation**](https://msdn.microsoft.com/en-us/library/Aa446671(v=VS.85).aspx)   | Retrieves information about a token.                                                                                                                                   |
+| [**IsTokenRestricted**](https://msdn.microsoft.com/en-us/library/Aa379137(v=VS.85).aspx)     | Determines whether a token has a list of restricting SIDs.                                                                                                             |
+| [**OpenProcessToken**](https://msdn.microsoft.com/en-us/library/Aa379295(v=VS.85).aspx)      | Retrieves a handle to the primary access token for a process.                                                                                                          |
+| [**OpenThreadToken**](https://msdn.microsoft.com/en-us/library/Aa379296(v=VS.85).aspx)       | Retrieves a handle to the impersonation access token for a thread.                                                                                                     |
+| [**SetThreadToken**](https://msdn.microsoft.com/en-us/library/Aa379590(v=VS.85).aspx)        | Assigns or removes an impersonation token for a thread.                                                                                                                |
+| [**SetTokenInformation**](https://msdn.microsoft.com/en-us/library/Aa379591(v=VS.85).aspx)   | Changes a token's owner, primary group, or default DACL.                                                                                                               |
 
 ##### 相关数据结构
 
-| Structure                                                    | Description                                                  |
-| ------------------------------------------------------------ | ------------------------------------------------------------ |
-| [**TOKEN_CONTROL**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_control) | Information that identifies an access token.                 |
-| [**TOKEN_DEFAULT_DACL**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_default_dacl) | The default DACL that the system uses in the security descriptors of new objects created by a thread. |
-| [**TOKEN_GROUPS**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_groups) | Specifies the SIDs and attributes of the group SIDs in an access token. |
-| [**TOKEN_OWNER**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_owner) | The default owner SID for the security descriptors of new objects. |
-| [**TOKEN_PRIMARY_GROUP**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_primary_group) | The default primary group SID for the security descriptors of new objects. |
-| [**TOKEN_PRIVILEGES**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_privileges) | The privileges associated with an access token. Also determines whether the privileges are enabled. |
-| [**TOKEN_SOURCE**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_source) | The source of an access token.                               |
-| [**TOKEN_STATISTICS**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_statistics) | Statistics associated with an access token.                  |
-| [**TOKEN_USER**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_user) | The SID of the user associated with an access token.         |
+| Structure                                                                                                           | Description                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| [**TOKEN_CONTROL**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_control)             | Information that identifies an access token.                                                          |
+| [**TOKEN_DEFAULT_DACL**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_default_dacl)   | The default DACL that the system uses in the security descriptors of new objects created by a thread. |
+| [**TOKEN_GROUPS**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_groups)               | Specifies the SIDs and attributes of the group SIDs in an access token.                               |
+| [**TOKEN_OWNER**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_owner)                 | The default owner SID for the security descriptors of new objects.                                    |
+| [**TOKEN_PRIMARY_GROUP**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_primary_group) | The default primary group SID for the security descriptors of new objects.                            |
+| [**TOKEN_PRIVILEGES**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_privileges)       | The privileges associated with an access token. Also determines whether the privileges are enabled.   |
+| [**TOKEN_SOURCE**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_source)               | The source of an access token.                                                                        |
+| [**TOKEN_STATISTICS**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_statistics)       | Statistics associated with an access token.                                                           |
+| [**TOKEN_USER**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ns-winnt-_token_user)                   | The SID of the user associated with an access token.                                                  |
 
 ##### 相关枚举类型
 
-| Enumeration type                                             | Specifies                                                    |
-| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| Enumeration type                                                                                                            | Specifies                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | [**TOKEN_INFORMATION_CLASS**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ne-winnt-_token_information_class) | Identifies the type of information being set or retrieved from an access token. |
-| [**TOKEN_TYPE**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ne-winnt-_token_type) | Identifies an access token as a primary or impersonation token. |
+| [**TOKEN_TYPE**](https://docs.microsoft.com/en-us/windows/desktop/api/Winnt/ne-winnt-_token_type)                           | Identifies an access token as a primary or impersonation token.                 |
 
 #### SID
 
@@ -88,4 +91,3 @@ SID在以下元素中被使用：
 * 安全描述符使用SID以描述对象的所有者和主用户组
 * ACE中用于标识其定义的访问权限对应的trustee
 * 访问令牌中用于标识用户及其所在组
-

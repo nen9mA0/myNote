@@ -108,13 +108,13 @@ HRESULT StringCchCatEx(PTSTR pszDest, size_t cchDest, PCTSTR pszSrc, PTSTR *ppsz
 * ppszDestEnd  指向缓冲区中字符串的末尾
 
 * dwFlags  提供多种处理剩余缓冲区的方法，是下面几个选项的组合
-
+  
   * STRSAFE_FILL_BEGIND_NULL  若函数成功 dwFlags低字节用于填充剩余的缓冲区（'\0'后的部分）
   * STRSAFE_IGNORE_NULLS  把值为NULL的字符串指针视为TEXT("")
   * STRSAFE_FILL_ON_FAILURE  若函数失败则用dwFlags低位填充缓冲区，但最后一字节是'\0'
   * STRSAFE_NULL_ON_FAILURE  若失败则把缓冲区第一字节改为'\0'
   * STRSAFE_NO_TRUNCATION  与上述一样
-
+  
   一些细节看MSDN
 
 ##### Windows字符串函数
@@ -123,12 +123,12 @@ HRESULT StringCchCatEx(PTSTR pszDest, size_t cchDest, PCTSTR pszSrc, PTSTR *ppsz
 
 ```
 int CompareString(
-	LCID locale;
-	DWORD dwCmdFlags.
-	PCTSTR pString1,
-	int cch1,
-	PCTSTR pString2,
-	int cch2);
+    LCID locale;
+    DWORD dwCmdFlags.
+    PCTSTR pString1,
+    int cch1,
+    PCTSTR pString2,
+    int cch2);
 ```
 
 LCID根据区域比较字符集
@@ -144,12 +144,13 @@ dwCmdFlags可以设置一系列语言相关的比较属性
 ### 编程规范
 
 * 使用通用字符串类型**TCHAR/PTSTR**
+
 * 使用通用字节类型**BYTE/PBYTE**
 
 * 字符（串）常量**TEXT/_T**
 
 * 使用**_countof(szBuffer)**而不是sizeof(szBuffer)，特别是分配内存时
-
+  
   ```
   #define chmalloc(nCharacters) (TCHAR*)malloc(nCharacters*sizeof(TCHAR))
   ```
@@ -166,14 +167,14 @@ dwCmdFlags可以设置一系列语言相关的比较属性
 
 ```
 int WideCharToMultiByte(
-	UINT uCodePage,
-	DWORD dwFlags,
-	PCWSTR pWideCharStr,
-	int cchWideCHar,
-	PSTR pMultiByteStr,
-	int cbMultiByte,
-	PCSTR pDefaultChar,
-	PBOOL pfUsedDefaultChar
+    UINT uCodePage,
+    DWORD dwFlags,
+    PCWSTR pWideCharStr,
+    int cchWideCHar,
+    PSTR pMultiByteStr,
+    int cbMultiByte,
+    PCSTR pDefaultChar,
+    PBOOL pfUsedDefaultChar
 );
 ```
 
@@ -188,18 +189,18 @@ int WideCharToMultiByte(
 ```
 BOOL StringReverseW(PWSTR pWideCharStr, DWORD cchLength)
 {
-	PWSTR pEndOfStr = pWideCharStr + wcsnlen_s(pWideCharStr, cchLength) - 1;
-	wchar_t cCharT;
+    PWSTR pEndOfStr = pWideCharStr + wcsnlen_s(pWideCharStr, cchLength) - 1;
+    wchar_t cCharT;
 
-	while (pWideCharStr < pEndOfStr)
-	{
-		cCharT = *pEndOfStr;
-		*pEndOfStr = *pWideCharStr;
-		*pWideCharStr = cCharT;
-		pEndOfStr--;
-		pWideCharStr++;
-	}
-	return(TRUE);
+    while (pWideCharStr < pEndOfStr)
+    {
+        cCharT = *pEndOfStr;
+        *pEndOfStr = *pWideCharStr;
+        *pWideCharStr = cCharT;
+        pEndOfStr--;
+        pWideCharStr++;
+    }
+    return(TRUE);
 }
 ```
 
@@ -208,29 +209,29 @@ ANSI版本用于转换字符串
 ```
 BOOL StringReverseA(PSTR pMultiByteStr, DWORD cchLength)
 {
-	PWSTR pWideCharStr;
-	int nLenOfWideCharStr;
-	BOOL fOk = FALSE;
+    PWSTR pWideCharStr;
+    int nLenOfWideCharStr;
+    BOOL fOk = FALSE;
 
-	nLenOfWideCharStr = MultiByteToWideChar(CP_ACP, 0, pMultiByteStr, cchLength, NULL, 0);
-	//Set cchWideChar to 0 to get length of multibyte string
-	pWideCharStr = (PWSTR)HeapAlloc(GetProcessHeap(),
-		0, nLenOfWideCharStr * sizeof(wchar_t));
-	if (pWideCharStr == NULL)
-		return(fOk);
+    nLenOfWideCharStr = MultiByteToWideChar(CP_ACP, 0, pMultiByteStr, cchLength, NULL, 0);
+    //Set cchWideChar to 0 to get length of multibyte string
+    pWideCharStr = (PWSTR)HeapAlloc(GetProcessHeap(),
+        0, nLenOfWideCharStr * sizeof(wchar_t));
+    if (pWideCharStr == NULL)
+        return(fOk);
 
-	MultiByteToWideChar(CP_ACP, 0, pMultiByteStr, cchLength,
-		pWideCharStr, nLenOfWideCharStr);
-	fOk = StringReverseW(pWideCharStr, cchLength);
+    MultiByteToWideChar(CP_ACP, 0, pMultiByteStr, cchLength,
+        pWideCharStr, nLenOfWideCharStr);
+    fOk = StringReverseW(pWideCharStr, cchLength);
 
-	if (fOk)
-	{
-		WideCharToMultiByte(CP_ACP, 0, pWideCharStr, -1,
-			pMultiByteStr, (int)strlen(pMultiByteStr), NULL, NULL);
-	}
-	HeapFree(GetProcessHeap(), 0, pWideCharStr);
+    if (fOk)
+    {
+        WideCharToMultiByte(CP_ACP, 0, pWideCharStr, -1,
+            pMultiByteStr, (int)strlen(pMultiByteStr), NULL, NULL);
+    }
+    HeapFree(GetProcessHeap(), 0, pWideCharStr);
 
-	return(fOk);
+    return(fOk);
 }
 ```
 
@@ -261,8 +262,8 @@ BOOL IsTextUnicode(CONST PVOID pvBuffer, int cb, PINT pResult);
 ```
 typedef struct _SECURITY_ATTRIBUTES{
     DWORD nLength;
-    LPVOID lpSecurityDescriptor;	//此成员定义了安全描述符
-    BOOL bInheritHandle;			//此成员表示允许对象继承
+    LPVOID lpSecurityDescriptor;    //此成员定义了安全描述符
+    BOOL bInheritHandle;            //此成员表示允许对象继承
 } SECURITY_ATTRIBUTES;
 ```
 
@@ -271,11 +272,11 @@ typedef struct _SECURITY_ATTRIBUTES{
 ```
 SECURITY_ATTRIBUTE sa;
 sa.nLength = sizeof(sa);
-sa.lpSecurityDescriptor = pSD;	//为NULL时表示默认安全性
+sa.lpSecurityDescriptor = pSD;    //为NULL时表示默认安全性
 sa.bInheritHandle = FLASE;
 
 HANDLE hFileMapping = CreateFileMapping(INVAILD_HANDLE_VALUE, &sa, 
-								PAGE_READWRITE, 0, 1024, TEXT("MyFileMapping"));
+                                PAGE_READWRITE, 0, 1024, TEXT("MyFileMapping"));
 ```
 
 此时如果调用OpenFileMapping，在返回有效句柄值前将检查当前用户允不允许访问，返回NULL句柄，使用GetLastError将得到ERROR_ACCRSS_DENIED。
@@ -315,7 +316,9 @@ BOOL CloseHandle(HANDLE hobject);
 ```
 
 * 检查主调进程的句柄表
+
 * 验证传入的句柄值对应表项有无权访问
+
 * 若有效则系统获取内核对象数据结构地址，递减引用计数，且当计数为0时销毁。
 
 * 清除进程句柄表中对应表项（无论内核对象是否被销毁都会执行这步，这说明若内核对象没被销毁则其被其他进程使用）
@@ -354,6 +357,7 @@ BOOL CreateProcessA(
 当CreateProcess时系统除了创建进程外将做如下操作
 
 * 遍历内核对象句柄表
+
 * 若对应表项是**可继承**的，则将其**复制**到子进程内核对象表的**索引相同的表项**
 
 * 内核对象**引用计数+1**
@@ -377,7 +381,7 @@ BOOL CreateProcessA(
 
 ```C
 BOOL SetHandleInformation(
-	HANDLE hObject,
+    HANDLE hObject,
     DWORD dwMask;
     DWORD dwFlags
 );
@@ -388,7 +392,7 @@ BOOL SetHandleInformation(
 
 ```C
 BOOL GetHandleInformation(
-	HANDLE hObject,
+    HANDLE hObject,
     PDWORD pdwFlags
 )
 ```
@@ -403,11 +407,11 @@ BOOL GetHandleInformation(
 
 ```C
 SetHandleInformation(hObj,HANDLE_FLAG_INHERIT,HANDLE_FLAG_INHERIT); //开启对象继承
-SetHandleInformation(hObj,HANDLE_FLAG_INHERIT,0);	//关闭对象继承
+SetHandleInformation(hObj,HANDLE_FLAG_INHERIT,0);    //关闭对象继承
 
 SetHandleInformation(hObj,HANDLE_FLAG_PROTECT_FROM_CLOSE,
-                     HANDLE_FLAG_PROTECT_FROM_CLOSE)	//开启句柄关闭保护
-    												//此时若CloseHandle(hObj)将引发异常
+                     HANDLE_FLAG_PROTECT_FROM_CLOSE)    //开启句柄关闭保护
+                                                    //此时若CloseHandle(hObj)将引发异常
 ```
 
 第二个方法一般用于防止子进程创建孙进程后CloseHandle，使孙进程获取一个无效的内核对象
@@ -440,9 +444,11 @@ HANDLE hMutexProcessB = CreateMutex(NULL,FALSE,TEXT("MutexA"));
 ```
 
 * 检查命名空间是否存在MutexA
+
 * 存在，检查内核对象类型是否一致
 
 * 类型都为Mutex，检查ProcessB是否有对MutexA的完全访问权限
+
 * 有则在B的句柄表中寻找一个空白表项并填入，否则返回NULL
 
 关于内核对象的权限详见[文档](<https://docs.microsoft.com/zh-cn/windows/desktop/Sync/synchronization-object-security-and-access-rights>)，一般需要使用Create\*Ex函数创建，并指定**dwDesiredAccess**参数
@@ -481,19 +487,19 @@ HANDLE hMutexProcessB = CreateMutex(NULL,FALSE,TEXT("MutexA"));
 DWORD processID = GetCurrentProcessId();
 DWORD sessionID;
 if(ProcessIdToSessionId(processID,&sessionID))
-	tprintf("Process %u runs in Terminal Services session %u\n",processID,sessionID);
+    tprintf("Process %u runs in Terminal Services session %u\n",processID,sessionID);
 ```
 
 显式创建全局命名对象或局部命名对象
 
 ```C
 HANDLE h = CreateEvent(NULL,FALSE,FALSE,TEXT("Global\\Myname"));  //全局命名对象
-														//使用Global\\
-HANDLE h = CreateEvent(NULL,FALSE,FALSE,TEXT("Local\\Myname"));	  //局部命名对象
-														//使用Local\\
+                                                        //使用Global\\
+HANDLE h = CreateEvent(NULL,FALSE,FALSE,TEXT("Local\\Myname"));      //局部命名对象
+                                                        //使用Local\\
 HANDLE h = CreateEvent(NULL,FALSE,FALSE,TEXT("SessionX\\Myname"));//局部命名对象
-														//若Session不是当前的sessionID
-														//则报错
+                                                        //若Session不是当前的sessionID
+                                                        //则报错
 ```
 
 #### 专有命名空间
