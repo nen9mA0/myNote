@@ -1104,6 +1104,8 @@ b'\x00\x00\x00\x00\x00\x00\x00\x00\x00S\x00\x80N\x00\x00 \x00\x00\x00\x00'
 
 #### 预设的State
 
+下面所有state都可以接收一个addr参数来指示从哪个地址开始执行
+
 * `.blank_state()`  大多数的数据没有被初始化，当访问未初始化数据时会返回一个无约束的符号量
 
 * `.entry_state()`  构造一个到达程序入口点，准备执行的状态
@@ -1469,15 +1471,49 @@ stash模型真正的能力是当遇到了符号化的条件分支，两种可能
 
 #### 本节介绍的模块与方法
 
-TODO
+##### SimulationManager
+
+```python
+# 从state创建simulation manager
+state = proj.factory.entry_state()
+simgr = proj.factory.simgr(state)
+
+# stash类型与状态
+simgr.active            # 将要执行步进操作的state
+simgr.deadended         # 无法继续执行的state
+simgr.pruned            # 指定LAZY_SOLVES参数时部分unsat的state
+simgr.unconstrained     # 指定save_unconstrained参数时，判定为unconstrained的state
+simgr.unsat             # unsat的state
+
+simgr.one_deadended     # one_[stash名字] 返回该stash中第一个元素
+simgr.mp_deadended      # mp_[stash名字] 返回该stash的mulpyplexed对象
+
+simgr.move(from_stash="", to_stash="", filter_func=func)
+                        # 将state移动到其他stash
+
+# 符号执行 步进
+simgr.step()
+
+# 符号执行 执行到所有状态都不为active
+simgr.run()
+
+# 符号执行 执行到指定地址
+simgr.explore()
+
+# 返回执行到指定地址的第一个state
+simgr.found[0]
+
+# 指定符号执行时使用的路径探索算法
+simgr.use_technique(angr.exploration_techniques.DFS)
+```
 
 ### Execution Engines  执行引擎
 
 当我们进行步进操作时，angr使用一系列的引擎来模拟执行，下面为默认的执行引擎列表，angr的执行处理顺序如下
 
-* 当执行使程序进入无法继续执行的状态，调用failure engine
+* 若执行使程序进入无法继续执行的状态，调用failure engine
 
-* 当执行调用了syscall，则使用syscall engine处理
+* 若执行调用了syscall，则使用syscall engine处理
 
 * 若当前地址为hook地址，调用hook engine
 
@@ -1485,16 +1521,72 @@ TODO
 
 * 其他情况下，调用VEX engine
 
-##### SimSuccessors
+#### SimSuccessors
 
 是`.step()`返回的类，该类目的是对successor的属性进行简单分类，这些属性有：
 
-| 属性         | 条件  | 指令指针 | 描述  |
-| ---------- | --- | ---- | --- |
-| successors |     |      |     |
-|            |     |      |     |
-|            |     |      |     |
-|            |     |      |     |
+| 属性                       | 条件       | 指向的状态            | 描述                                                                 |
+| ------------------------ | -------- | ---------------- | ------------------------------------------------------------------ |
+| successors               | True     | 可以是符号（小于等于256个解） | 符合条件的successor，指向的state可以包含符号值，因此该successor可能表示了多个路径执行的结果          |
+| unsat_successors         | False    | 可以是符号            | 不符合条件的successors                                                   |
+| flat_successors          | True     | 必须为具体值           | 符合条件的successor，并且将符号值展开为具体值（最多256个），因此这里的每个state都唯一地表示程序的一条具体路径和状态 |
+| unconstrained_successors | True     | 符号（大于256个解）      | 若flat_successors中的状态大于256，则会转换为该类型                                 |
+| all_successors           | Anything | 可以是符号            | 为 successors+unsat_successors+unconstrained_successors             |
+
+#### Breakpoints
+
+##### 基本用法
+
+angr提供了instrumentation的功能，可以在特定事件中插入断点
+
+```python
+import angr
+proj = angr.Project("xxx")
+state = proj.factory.entry_state()
+s.inspect.b("mem_write")
+```
+
+支持的事件列表可以参考[Simulation and Instrumentation - angr documentation](https://docs.angr.io/en/latest/core-concepts/simulation.html#breakpoints)
+
+此外，可以指定断点的一系列属性
+
+```python
+# 指定断点触发时机和回调函数
+s.inspect.b("mem_write", when=angr.BP_AFTER, action=mem_read_cb)
+
+# 指定断点触发的地址
+s.inspect.b("mem_write", mem_write_address=0x1000)
+
+# 指定条件判断回调
+s.inspect.b("mem_write", condition=cond_cb)
+```
+
+##### mem_read注意事项
+
+当程序中使用state.mem读取内存时也会触发mem_read断点。此时应该使用
+
+```
+state.memory.load(0x1000, disable_actions=True, inspect=False)
+```
+
+state.find也可以通过同样的参数避免触发mem_read断点
+
+### Analyses
+
+目前内置的分析方法如下
+
+| 名称            | 描述                                     |
+| ------------- | -------------------------------------- |
+| CFGFast       | 快速构造程序的CFG                             |
+| CFGEmulated   | 构造精确的CFG                               |
+| VFG           | 对每个函数进行数据流分析，并构造数据流图（Value Flow Graph） |
+| DDG           | 构造数据依赖图（Data Dependency Graph）         |
+| BackwardSlice | 反向切片                                   |
+| Identifier    | 识别二进制文件中的函数                            |
+
+
+
+
 
 ## 附录
 
