@@ -668,5 +668,3 @@ func squares() func() int {
 # Go的一些陷阱
 
 ## 捕获迭代变量
-
-
