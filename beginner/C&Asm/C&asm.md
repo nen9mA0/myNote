@@ -614,19 +614,18 @@ int main(void)
     print_str_3(str, 1, 2, 3, 4);
     return 0;
 }
-
 ```
 
 ### 注意点
 
 * 调用约定
-
+  
   * stdcall  参数自右向左压入，由被调用的函数清理堆栈
   * cdecl   参数自右向左压入，由调用者清理堆栈
   * fastcall 通过寄存器ecx edx传递前两个参数，其他从右向左压入堆栈，由被调用的函数清理堆栈
-
+  
   x64下没有上述几种不同的调用约定，一般采用下列两种调用约定。其中[XYZ]MM寄存器用于传递浮点参数
-
+  
   * Microsoft x64 calling convention  一般用于Windows系统的程序
     * 参数寄存器： RCX/XMM0  RDX/XMM1  R8/XMM2  R9/XMM3
     * 顺序：右到左
@@ -882,10 +881,6 @@ retn
 sub_1400010A0 endp
 ```
 
-
-
-
-
 ## 分支
 
 ### Source
@@ -962,7 +957,7 @@ arg_8           = dword ptr  18h
                 sub     rsp, 30h
                 mov     [rbp+arg_0], ecx
                 mov     [rbp+arg_8], edx
-                
+
                 ; if (a < b)
                 mov     eax, [rbp+arg_0]
                 cmp     eax, [rbp+arg_8]
@@ -1268,7 +1263,7 @@ envp            = dword ptr  10h
                 push    ebp
                 mov     ebp, esp
                 sub     esp, 14h
-                
+
                 ; initialize loop
                 mov     [ebp+var_8], 0
                 jmp     short loc_401018
@@ -1575,7 +1570,7 @@ var_10          = dword ptr -10h
 
                 sub     rsp, 38h
                 mov     [rsp+38h+var_10], 0
-                
+
                 ; scanf
                 lea     rdx, [rsp+38h+var_18]
                 lea     rcx, unk_14001D000
@@ -1585,7 +1580,7 @@ loc_14000101D:                          ; CODE XREF: main:def_14000105C↓j
                 ; loop begin
                 cmp     [rsp+38h+var_10], 0Ah
                 jge     loc_1400010CC
-                
+
                 ; switch begin
                 mov     eax, [rsp+38h+var_18]
                 cdq
@@ -1597,7 +1592,7 @@ loc_14000101D:                          ; CODE XREF: main:def_14000105C↓j
                 cmp     [rsp+38h+var_14], 7 ; switch 8 cases
                 ; jump default
                 ja      def_14000105C   ; jumptable 000000014000105C default case
-                
+
                 ; calculate jump table index
                 movsxd  rax, [rsp+38h+var_14]
                 lea     rcx, cs:140000000h
@@ -1697,6 +1692,3 @@ main            endp
 ##### CFG
 
 ![](pic/8.png)
-
-
-
