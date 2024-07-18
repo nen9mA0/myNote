@@ -8,11 +8,11 @@ https://github.com/nccgroup/SusanRTTI
 
 ## RTTI表结构
 
+### gcc
+
 ![](pic/rtti_1.png)
 
 ## rtfsc
-
-
 
 ### better-rtti-parser
 
@@ -78,6 +78,16 @@ struct Elf64_Sym {
 
 * 符号表项的st_value指向这一系列类的信息表（TypeInfoVtable），读取该表
 
-### better-rtti-parser
+### SusanRTTI
 
+### ida_medigate
 
+#### cpp_plugin
+
+主要定义了一系列IDA界面动作的回调（CPPHooks CPPUIHooks），hexray的回调（HexRaysHooks）以及一个可以处理hexray ctree结构的类（Polymorphism_fixer_visitor_t）
+
+## ref
+
+* [C++基础之运行时类型识别RTTI - 箐茗 - 博客园 (cnblogs.com)](https://www.cnblogs.com/MinPage/p/14638823.html)
+
+* [spockwangs.github.com/_posts/2011-01-31-cpp-object-model.md at master · spockwangs/spockwangs.github.com](https://github.com/spockwangs/spockwangs.github.com/blob/master/_posts/2011-01-31-cpp-object-model.md)
