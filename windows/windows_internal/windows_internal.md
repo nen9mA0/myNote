@@ -206,8 +206,50 @@ IUM大多数时候会与普通用户模式共享win32 API，但写时复制机�
 
 VTL0和VTL1是隔离的，安全内核并没有实现完整的系统能力，而是选择性地转发系统调用，而任何IO操作（文件 注册表 图形等）都被禁止，也无法直接与驱动程序通信
 
+安全内核可以通过SLAT（二级地址转换）和IOMMU机制对内存访问进行限制，可以阻止设备驱动程序通过DMA访问虚拟机监控程序或安全内核的物理内存
 
+在这种架构下，boot loader首先安排合适的SLAT和IOMMU，定义VTL0和VTL1的执行环境，之后当处于VTL1时会再次运行boot loader，加载安全内核并进一步配置系统。之后才会通过VTL0运行常规内核
 
+### 重要的系统组件
 
+![](pic/7.png)
 
+#### 环境子系统和子系统DLL
 
+每个exe都会绑定到唯一的子系统。创建进程时，代码会在可执行文件头部检查子系统的类型代码，将新建进程告知正确的子系统。一般来说，exe不会直接与windows内核进行交互，而是通过子系统DLL，如windows子系统DLL（kernel32.dll advapi32.dll等）
+
+调用子系统dll时，一般情形如下
+
+* 函数直接在子系统DLL内以用户模式实现
+
+* 函数需要对windows执行体进行一个或多个调用
+
+* 函数要在环境子系统进程中执行一些工作
+
+##### 子系统的启动
+
+子系统启动信息一般存在注册表项
+
+```
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\SubSystems
+```
+
+* Windows  定义了windows子系统的文件规范，键值Csrss.exe代表客户端/服务端运行时的子系统
+
+* Optional  可选的子系统
+
+* Kmode  Windows子系统内核模式部分的文件名（Win32k.sys）
+
+##### Windows子系统
+
+windows子系统是最主要的子系统，，与windows系统交互的各种函数主要都放在windows子系统中，其他子系统通过调用windows子系统实现显示IO
+
+包含下列重要组件
+
+* 对于每个会话，环境子系统进程Csrss.exe的一个实例将加载4个dll，Basesrv.dll Winsrc.dll Sxssrv.dll Csrsrv.dll，提供下列支持
+  
+  * 与进程和线程创建及删除有关的多种管理任务
+  
+  * Windows应用程序的关闭（ExitWindowsEx）
+  
+  * 
