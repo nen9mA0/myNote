@@ -1,3 +1,5 @@
+# PART I: AN OVERVIEW OF THE WINDOWS
+
 ## Setting up a powershell testing environment
 
 ### Configuring Powershell
@@ -633,4 +635,603 @@ Session 0是给特权服务和系统管理使用的，因此该session一般不�
 > 
 > * 用户接口特权隔离（User Interface Privilege Isolation, UIPI），阻止低特权级程序与直接与高特权级程序交互
 
-Console Session还有一个重要特性：当多个用户同时登录时，必会导致
+Console Session还有一个重要特性：当多个用户同时登录时，必会导致名字冲突。因此Windows给每个Session创建了单独的BNO `\Sessions\<N>\BaseNamedObjects`和单独的Window `\Session\<N>\Windows`，其中`<N>`为session id。注意session 0没有单独的BNO，它用的是全局BNO
+
+### Comparing Win32 APIs and System Calls
+
+win32 API很多时候并不会直接wrap一个系统调用，而是会有一些区别
+
+```c
+HANDLE CreateMutexEx( 
+    SECURITY_ATTRIBUTES* lpMutexAttributes, 
+    const WCHAR*         lpName, 
+    DWORD                dwFlags, 
+    DWORD                dwDesiredAccess
+);
+
+NTSTATUS NtCreateMutant( 
+    HANDLE*              MutantHandle, 
+    ACCESS_MASK          DesiredAccess, 
+    OBJECT_ATTRIBUTES*   ObjectAttributes, 
+    BOOLEAN              InitialOwner 
+); 
+```
+
+* Win32 API返回NTSTATUS，CreateMutexEx则直接返回handle。关于错误传播，内核函数通过NTSTATUS传播，可以调用`RtlNtStatusToDosError`，而Win32 API通过一个全局变量传播，可以使用`GetLastError`获取错误码
+
+* Win32 API不接收OBJECT_ATTRIBUTES参数，而是将OBJECT_ATTRIBUTES的相关内容分成了两个参数进行接收
+  
+  * lpMutexAttributes  一个指向SECURITY_ATTRIBUTES
+    
+    ```c
+    struct SECURITY_ATTRIBUTES { 
+        DWORD  nLength; 
+        VOID*  lpSecurityDescriptor; 
+        BOOL   bInheritHandle; 
+    }; 
+    ```
+  
+  * lpName  对象名
+
+* Win32 API中，名字参数lpName不是一个完整的OMNS路径，而是会自动地被放置到对应BNO文件夹下。如指定名字为`ABC`，则会放到`\Sessions\<N>\BaseNamedObjects\ABC`文件夹下。若想创建全局对象，则可以使用`Global\ABC`
+
+* dwDesiredAccess与内核的DesiredAcce是直接映射，InitialOwner则由dwflags的一个枚举指定
+
+#### Win32 Registry Paths
+
+几个常用主键的OMNS路径
+
+| 主键名                 | OMNS路径                                                                     |
+| ------------------- | -------------------------------------------------------------------------- |
+| HKEY_LOCAL_MACHINE  | \REGISTRY\MACHINE                                                          |
+| HKEY_USERS          | \REGISTRY\USER                                                             |
+| HKEY_CURRENT_CONFIG | \REGISTRY\MACHINE\SYSTEM\CurrentControlSet\Hardware Profiles\Current       |
+| HKEY_CURRENT_USER   | \REGISTRY\USER\<SDDL SID>                                                  |
+| HKEY_CLASSES_ROOT   | \REGISTRY\MACHINE\SOFTWARE\Classes  <br/>\REGISTRY\USER\<SDDL SID>_Classes |
+
+> 注意：Win32API使用NUL结尾的字符串作为参数，而内核函数使用标记了长度的字符串作为参数，因此内核函数的路径可以包含NUL，这可能导致Win32API访问不到对应注册表，而内核函数可以情况，导致安全问题
+
+#### DOS Devoce Paths
+
+内核函数调用的是NT path，而Win32 API使用的是DOS path（即带盘符的路径）。NTDLL使用RtlDosPathNameToNtPathName做转换，例如`C:\Windows`会被转换成`\??\C:\Windows`，其中`\??`前缀称为DOS设备映射前缀（DOS device map prefix），它用于通知对象管理器查找盘符应分为两步：
+
+* 查找用户的DOS设备映射目录 `Sessions\0\DosDevices\<AUTHID>`，其中AUTHID与session的token有关。注意这里所有的DOS设备映射都会放在session 0的目录下
+
+* 若上一步没有找到，则会检查`\Global??`目录
+
+由于会优先查找用户DOS目录，因此可以在这边创建磁盘的映射，且该映射可以将磁盘映射到某个目录下
+
+##### Path Types
+
+下面是几种路径的类型
+
+![](pic/14.png)
+
+由于DOS路径存在很多种不同写法，因此必须通过一个规范化（canonicalize）的过程进行转换。
+
+> 像Linux这样的系统规范化主要在内核里做，但Windows将该过程前置到用户空间。这是因为Windows的subsystem设计初衷是可以兼容POSIX路径等，因此可以通过前置该规范化过程使得用户态的subsystem dll就可以处理这些路径问题
+
+规范化包含下列处理过程：
+
+* 处理`/`和`\`  Native路径只使用`\`作为分隔符，而DOS路径两者皆可，因此转换的一个主要操作就是将所有的正斜杠和反斜杠都转换为反斜杠
+
+* 处理`.`和`..`  规范化过程会将所有的`.`删除，将`..`转换为上一级目录
+
+* 若DOS路径以`\\?\`或`\??\`开头，则不会经过规范化过程，而是把其当作Native路径
+
+> 文章提到在一些情况下`\??\`的写法可能会对Win32 API造成混淆，比如将其当作根驱动器路径下的文件而打开诸如`\??\C:\??\Path`的路径
+
+默认状态下，DOS路径最长只能有260个字符，而Native路径长度为32767。但该限制可以通过一个注册表项修改，此外还需要程序的manifest文件支持LongPathAware选项，否则很多软件在编写时默认将260作为路径缓冲区的长度
+
+### Process Creation
+
+#### Command Line Parsing
+
+最简单的一种创建进程的方式是将命令行传入CreateProcess
+
+当传入命令行`notepad test.txt`时，操作如下：
+
+* 按空格分割命令行字串（除非被双引号括起来），以第一个元素作为可执行文件名，若没有.exe后缀则加上
+
+* 搜索可执行文件，在命令行中搜索可执行文件的顺序为：
+  
+  * 当前进程可执行文件所在目录
+  
+  * 当前工作目录
+  
+  * System32
+  
+  * Windows
+  
+  * 环境变量
+
+* 若无法找到notepad.exe，则会将`"notepad test.txt"`整体作为文件进行查找，重新运行一遍上面查找可执行文件的逻辑。这里由于已经有`.txt`后缀，不会补上exe后缀。若notepad.exe被双引号括住则不会执行这一步
+
+> 注意，这边可能有两类安全问题：
+> 
+> * 与DLL劫持类似的路径搜索问题
+> 
+> * 若第一个元素包含路径分隔符且无双引号，则会有一些额外的操作，如`C:\Program Files\abc.exe`（注意这里包含了一个空格）。程序会依次尝试搜索下列的文件
+>   
+>   * `C:\Program`
+>   
+>   * `C:\Program.exe`
+>   
+>   * `C:\Program Files\abc.exe`
+>   
+>   * `C:\Program Files\abc.exe.exe`
+> 
+> 这类安全问题的缓解方式为：在调用CreateProcess时对ApplicationName参数指定一个可执行文件路径
+
+#### Shell APIs
+
+```c
+HINSTANCE ShellExecuteA(
+  [in, optional] HWND   hwnd,
+  [in, optional] LPCSTR lpOperation,
+  [in]           LPCSTR lpFile,
+  [in, optional] LPCSTR lpParameters,
+  [in, optional] LPCSTR lpDirectory,
+  [in]           INT    nShowCmd
+);
+
+BOOL ShellExecuteExA(
+  [in, out] SHELLEXECUTEINFOA *pExecInfo
+);
+
+BOOL ShellExecuteExW(
+  [in, out] SHELLEXECUTEINFOW *pExecInfo
+);
+```
+
+使用ShellExecute函数与CreateProcess的最大区别在于，前者会为不同后缀名的文件查找其对应的处理软件，如传入某个txt文件，ShellExecute会拉起默认文本处理软件打开，而CreateProcess只会报文件不是可执行文件的错
+
+后缀名对应的默认处理软件保存在注册表的HKEY_CLASSES_ROOT键中，ShellExecute执行时会搜索该注册表中对应的键。注册表中定义了多种行为，对应了对文件不同的操作，这些操作也可以作为参数传入ShellExecute
+
+| 操作        | 描述                  |
+| --------- | ------------------- |
+| open      | 打开文件，是双击默认行为        |
+| edit      | 编辑文件                |
+| print     | 打印文件                |
+| printto   | 使用指定的打印机打印          |
+| explore   | 在文件管理器打开文件          |
+| runas     | 以管理员身份打开，只适用于可执行文件  |
+| runasuser | 以其他用户身份打开，只适用于可执行文件 |
+
+### System Process
+
+相当一部分系统服务是在用户空间运行的，这是因为内核代码难以编写，且出问题的话会导致crash
+
+#### The Session Manager
+
+Session Manager Subsystem（SMSS）是第一个用户态进程，其在系统启动时就开始运行，作用包含
+
+* 加载known DLLs，创建section对象
+
+* 启动其他子系统进程，如CSRSS
+
+* 初始化基础的DOS设备，如串口
+
+* 自动运行磁盘完整性校验
+
+#### The Windows Logon Process
+
+* 设置新的console session
+
+* 显示用户登录界面
+
+* 运行用户态字体驱动（user-mode font driver, UMFD）
+
+* 运行桌面窗口管理器（desktop window manager, DWM）
+
+#### The Local Security Authority Subsystem
+
+LSASS，用于管理用户登录与认证
+
+#### The Service Control Manaer
+
+SCM，用于管理系统的服务。其中下列服务是一些系统关键服务
+
+* Remote Procedure Call Subsystem（RPCSS）  用于管理 注册RPC端点，将RPC端口暴露到本地或网络
+
+* DCOM Server Process Launcher  是RPCSS的一个关联项，曾经是RPCSS的一部分，用于启动本地以及远程的COM服务进程
+
+* Task Scheduler  用于管理计划任务
+
+* Windows Installer  用于安装程序和新特性
+
+* Windows Update  用于升级
+
+* Application Information  用于UAC控制（User Account Control）
+
+# PART II: THE WINDOWS SECURITY REFERENCE MONITOR
+
+ref: 
+
+* [【windows 访问控制】一、访问令牌 - 小林野夫 - 博客园 (cnblogs.com)](https://www.cnblogs.com/cdaniu/p/15630161.html)
+
+* [Windows 访问控制模型（一） | MYZXCG](https://myzxcg.com/2021/08/Windows-%E8%AE%BF%E9%97%AE%E6%8E%A7%E5%88%B6%E6%A8%A1%E5%9E%8B%E4%B8%80/)
+
+## SECURITY ACCESS TOKENS
+
+### Primary Tokens
+
+每个进程都会分配一个primary token（主令牌），该令牌用于描述进程的权限。当SRM进行access check时使用该token进行比较
+
+可以使用`NtOpenProcessToken`获取当前进程的token，该操作需要QueryLimitedInformation权限
+
+打开一个token对象后，可以请求下列权限
+
+* AssignPrimary  将该token当作当前进程的primary token
+
+* Duplicate  复制token对象
+
+* Impersonate  模拟token对象
+
+* Query  查询token的属性
+
+* QuerySource  查询token对象的源（source）
+
+* AdjustPrivileges  调整token对象的权限列表
+
+* AdjustGroups  调整token对象的组列表
+
+* AdjustDefault  调整未被其他权限覆盖的token对象属性
+
+* AdjustSessionId  调整token对象的session ID
+
+可以使用
+
+```powershell
+Show-NtToken -All
+```
+
+列出所有Token
+
+Token包含一些重要属性
+
+![](pic/15.png)
+
+* User SID  用于标识用户，token中只保存了SID，上图中通过SID索引了用户名
+
+* Token ID  Token对象的唯一标识符
+
+* Authentication ID  标识了Token所属的logon session
+
+* Origin Login ID  父logon session的身份验证标识符
+
+* Modified ID  当Token值被修改时，该ID会变化
+
+* Integrity Level  完整性级别，用于实现强制访问控制机制
+
+* session ID  创建进程的session ID
+
+当用户登录时，LSASS会为用户创建一个logon session（登录会话），该session会跟踪所有与该用户认证相关的资源（比如它会保存一份用户的credential）。logon session在创建时会分配一个独立的ID，这个ID就是每个进程中的Authentication ID，因此某个用户所有的进程都使用同一个ID（若某个用户在同一台机器上认证了两次，则SRM会分配新的Authentication ID）
+
+origin login ID标明了哪个logon session创建了token，若在计算机上登录了另一个账号，则该属性将用于调用该token的身份验证标识符（意思应该就是登录了另一个账号会更换session，但仍然可以使用这个域来调用该token）
+
+SRM预定义了四个Authentication ID
+
+| Authentication ID | User SID | Logon session username       |
+| ----------------- | -------- | ---------------------------- |
+| 00000000-000003E4 | S-1-5-20 | NT AUTHORITY\NETWORK SERVICE |
+| 00000000-000003E5 | S-1-5-19 | NT AUTHORITY\LOCAL SERVICE   |
+| 00000000-000003E6 | S-1-5-7  | NT AUTHORITY\ANONYMOUS LOGON |
+| 00000000-000003E7 | S-1-5-18 | NT AUTHORITY\SYSTEM          |
+
+> **LOCALLY UNIQUE IDENTIFIERS (LUID)**
+> 
+> 所有的token ID都是64位唯一值，可以调用NtAllocateLocallyUniqueId获取此类ID
+
+### Impersonation Tokens
+
+Impersonation Token（模拟令牌），对于系统服务来说很重要，因为它允许一个进程暂时模拟其他令牌来获取对资源的访问权限
+
+模拟token被分配到线程粒度而非进程，一共有三种方法为一个线程分配模拟令牌
+
+* 显式获取一个令牌对象，赋予Impersonate权限并使用SetThreadToken为该线程设置token
+
+* 显式从一个含有DirectImpersonation权限的线程对象获取模拟令牌对象
+
+* 隐式模拟一个RPC请求
+
+第三种是最常见的形式，一个例子是，某个服务创建了一共命名管道服务器，程序就可以模拟一个客户端通过ImpersonateNamedPipe连接到该服务；当客户端在命名管道发出一个请求，内核会根据要调用的线程和进程捕获一个模拟上下文（Impersonation context），该模拟上下文会将模拟令牌分配给调用ImpersonateNamedPipe的线程。模拟上下文的内容可以基于线程上已有的模拟令牌，也可以是基于进程的主令牌
+
+##### Security Quality of Service
+
+相关文档 [客户端/服务器访问控制 - Win32 apps | Microsoft Learn](https://learn.microsoft.com/zh-cn/windows/win32/secauthz/client-server-access-control)
+
+SQoS，用于控制其他服务是否能够模拟当前线程的令牌，场景主要是服务端为了安全，希望使用客户端的安全上下文而不是服务端本身的安全上下文来访问资源
+
+当打开命名管道服务器 DDE服务器等，可以在OBJECT_ATTRIBUTES结构的SecurityQualityOfService域传入SECURITY_QUALITY_OF_SERVICE结构来指定一些访问控制属性，该结构包含3类属性
+
+* 模拟等级（Impersonation Level），用于控制当前线程令牌是否可以被模拟
+  
+  * Anonymous  服务无法模拟或标识客户端
+    
+    最小的访问权限，只允许有限的几个服务访问线程令牌，其他服务打开或查询令牌的操作都会被拒绝
+  
+  * Identification  服务可以获取客户端的标识和特权，但不能模拟客户端
+    
+    允许服务打开 查找令牌 用户ID 用户组和权限，但模拟令牌无法访问任何安全资源
+  
+  * Impersonation  服务可以在本地系统上模拟客户端的安全上下文
+    
+    允许服务打开和操作用户的令牌，可以访问本地用户的所有远程资源，但若用户是一个远程认证的用户，则无法访问其资源（如SMB）
+  
+  * Delegation  服务可以在远程系统上模拟客户端的安全上下文
+    
+    最高权限，可以访问远程认证用户的资源（但还需要远程服务器有相应配置）
+
+* 上下文跟踪模式（Context Tracking Mode）
+  
+  开启该模式时，服务会静态地获取用户的令牌（即调用者进程的主令牌），否则动态获取，在动态获取的情况下调用者可以传入一个模拟令牌（只有在Impersonation或Delegation等级下才能传入）
+
+* 有效令牌模式（effective token mode）
+  
+  若不启用，服务可以在其中更改传入令牌的权限和组，之后再应用这个令牌
+
+> 模拟等级为Anonymous与使用ANONYMOUS LOGON令牌登录不一样，前者无论资源的安全等级设置为上面都无法通过access check
+> 
+> Kernel实现了一个函数NtImpersonateAnonymousToken使程序可以获取ANONYMOUS用户的token
+
+默认情况下若打开IPC时不设置SQoS结构，调用者默认以Impersonation、上下文跟踪开启、有效令牌模式关闭 的方式启动。当一个线程尝试获取另一个线程的模拟上下文时，该线程的模拟等级必须大于等于被捕获线程的模拟等级，这可以防止一个低模拟等级的用户伪装成一个高模拟等级的用户调用RPC
+
+```powershell
+# 获取当前线程主令牌
+$token = Get-NtToken
+# 创建模拟等级Impersonation的模拟令牌，并试图获取OMNS根目录
+# 该操作可以成功
+Invoke-NtToken $token {
+    Get-NtDirectory -Path "\"
+} -ImpersonationLevel Impersonation
+
+# 以Identification等级访问，该操作会失败
+Invoke-NtToken $token {
+    Get-NtDirectory -Path "\"
+} -ImpersonationLevel Identification
+```
+
+##### Explicit Token Impersonation
+
+有两种显式获取模拟令牌的方法
+
+* 若当前能获取一个含有Impersonate权限的模拟令牌，则可以调用NtSetInformationThread将该令牌赋予给某个线程
+
+* 若要模拟的线程有Direct Impersonation权限，则可以调用NtImpersonateThread将该线程的模拟令牌分配给其他线程。该函数调用后内核会获取被模拟线程的模拟上下文执行目标线程，就像隐式模拟中通过命名管道进行调用一样
+
+### Converting Between Token Type
+
+可以通过NtDuplicateToken复制（duplication）的方式在两种token类型（即主令牌和模拟令牌）间转换，该操作会对token进行深拷贝，区别于线程句柄的复制操作（该操作只引用先前的token）。复制token需要Duplicate权限
+
+```powershell
+# 将一个主令牌以Delegation模拟等级复制为一个模拟令牌
+$imp_token = Copy-NtToken -Token $token -ImpersonationLevel Delegation
+
+# 将该模拟令牌复制为主令牌
+$pri_token = Copy-NtToken -Token $imp_token -Primary
+```
+
+复制操作与模拟等级相关，无法复制一个Anonymous或Identification模拟等级的令牌，这样可以防止程序通过将一个低模拟等级的模拟令牌复制为主令牌来绕过SQoS检查
+
+```powershell
+# 将一个主令牌以Identification模拟等级复制为一个模拟令牌
+$imp_token = Copy-NtToken -Token $token -ImpersonationLevel Identification
+
+# 下面操作会报错
+$pri_token = Copy-NtToken -Token $imp_token -Primary
+```
+
+### Pseudo Token Handles
+
+token有三种伪句柄（pseudo handle），以此让程序可以在不打开自身token句柄的情况下查询token属性，括号里是句柄值。该特性主要是方便进程或线程查询自身的token属性
+
+* Primary (-4)  当前进程主令牌
+
+* Impersonation (-5)  当前线程模拟令牌，若当前线程没有进行模拟则会返回错误
+
+* Effective (-6)  若当前线程在模拟，则返回模拟令牌，否则返回主令牌
+
+```powershell
+# 使用模拟等级为Anonymous的令牌以伪句柄方式获取主令牌。该操作将返回正常的用户
+Invoke-NtToken -Anonymous {Get-NtToken -Pseudo -Primary | Get-NtTokenSid}
+
+# 使用模拟等级为Anonymous的令牌以伪句柄方式获取模拟令牌。该操作将返回NT ANONYMOUS
+Invoke-NtToken -Anonymous {Get-NtToken -Pseudo -Impersonation | Get-NtTokenSid}
+```
+
+### Token Groups
+
+ref:
+
+* [TOKEN_GROUPS (winnt.h) - Win32 apps | Microsoft Learn](https://learn.microsoft.com/zh-cn/windows/win32/api/winnt/ns-winnt-token_groups)
+
+若管理员需要为每一个用户设置可以访问的资源，则一般会使用分组的功能进行管理
+
+从SRM的视角来看，一个组也由一个SID标识，并可以定义对各个资源访问权限
+
+令牌组定义如下
+
+```c
+typedef struct _TOKEN_GROUPS {
+  DWORD              GroupCount;
+#if ...
+  SID_AND_ATTRIBUTES *Groups[];
+#else
+  SID_AND_ATTRIBUTES Groups[ANYSIZE_ARRAY];
+#endif
+} TOKEN_GROUPS, *PTOKEN_GROUPS;
+```
+
+SID_AND_ATTRIBUTES结构包含一个SID和对应的属性，属性描述了对应SID的特性，包括
+
+* Enabled EnabledByDefault  该组SID启用（默认启用）
+  
+  当设置Enabled时，表示令牌组SID被启用，当对token进行access check时SRM会考虑令牌组权限。拥有EnabledByDefault属性的令牌组SID默认被启用
+
+* Mandatory  无法禁用该组SID
+  
+  当拥有AdjustGroups权限时，可以通过NtAdjuestGroupsToken禁用令牌组SID；但无法禁用包含Mandatory属性的令牌组SID。所有正常的用户令牌组都设置了该属性，但一些系统令牌组没有设置该属性
+  
+  在传递模拟令牌时，若某个令牌组失能，且传递模拟令牌时没有打开[有效令牌模式](#Security Quality of Service)，则在传递的令牌中会删除这些失能令牌组的信息
+
+* LogonId  SID是Logon SID
+  
+  标记Logon SID。例如使用runas作为不同用户运行一个进程时，新进程的token中Logon ID项与调用runas的进程是相同的，这个行为使得SRM可以授予该进程某个会话特定资源的访问权限
+
+* Owner  SID是令牌的所有者，或可以将SID分配为令牌所有者
+  
+  系统上所有的安全资源都有一个所属的用户SID或组SID，token在创建资源时会默认将拥有该属性的SID设为owner
+
+* UseForDenyOnly  SID是受限令牌中的仅拒绝SID
+  
+  考虑下列情况，一个文档希望A组的用户可以访问，B组的不能访问，如果一个用户c既属于A又属于B，那么它可以禁用自己的B组属性来访问文档，而若为该用户添加UseForDenyOnly属性可以防止其访问文档，从而解决这个问题
+
+* Integrity IntegrityEnabled  SID是强制完整性SID / 强制完整性启用SID
+  
+  该SID用于标识token的完整性等级（integrity level）。系统预定义了7个默认的完整性等级
+  
+  ![](pic/16.png)
+  
+  ![](pic/17.png)
+
+* Resource 表示组SID是一个domain local SID
+
+token还可以拥有设备组（device groups），当用户登录远程服务器或资源时这些SID被加入到组中
+
+### Privileges
+
+组是系统管理员用来控制用户访问资源权限的工具，而特权则是让用户可以暂时通过安全检查来访问大多数资源的方法
+
+![](pic/18.png)
+
+当拥有AdjustPrivileges权限时，可以使用NtAdjustPrivileges修改token权限
+
+在用户程序中，使用NtPrivilegeCheck检查特权，内核程序中则使用SePrivilegeCheck
+
+下列是一些系统可用的特权
+
+* SeChangeNotifyPrivilege  允许用户接收文件/注册表变化的通知，此外可以用于通过traversal检查
+
+* SeAssignPrimaryTokenPrivilege / SeImpersonatePrivilege  允许用户直接通过对主令牌 / 模拟令牌赋值的检查。该权限必须在当前进程主令牌上启用才生效
+
+* SeBackupPrivilege / SeRestorePrivilege  允许用户在打开注册表/文件时直接通过检查，主要用于备份/恢复程序，避免操作时无法获取对应文件权限
+
+* SeSecurityPrivilege / SeAuditPrivilege  前者允许用户获取AccessSystemSecurity权限，该权限可以修改资源的审计配置；后者则允许用户程序产生审计事件
+
+* SeCreateTokenPrivilege  该权限允许用户使用NtCreateToken生成任意令牌
+
+* SeDebugPrivilege  允许用户在打开一个进程或线程对象时直接通过检查
+
+* SeTcbPrivilege  包含了一系列内核相关操作
+
+* SeLoadDriverPrivilege  允许程序通过NtLoadDriver加载驱动（该特权无法绕过诸如驱动签名检查等机制）
+
+* SeTakeOwnershipPrivilege / SeRelabelPrivilege  首先该特权允许用户获取资源的WriteOwner权限，其中SeTakeOwnershipPrivilege允许用户成为资源的owner，SeRelabelPrivilege可以直接通过对资源的强制标签（mandatory label）检查
+
+### Sandbox Tokens
+
+windows通过三类token提供了一套沙箱机制来限制进程对资源的访问
+
+#### Restricted Tokens
+
+使用NtFilterTolen或CreateRestrictedToken创建，上述API生成一系列指定的限制令牌来限制对资源的访问。在进行access check的时候，该过程不仅可以接收正常的SID组，也可以接收限制令牌列表
+
+NtFilterToken函数还可以将进程的SID组转为UseForDenyOnly属性，且删除其特权。可以通过创建限制令牌，结合删除原令牌的一些权限来实现沙箱功能
+
+```powershell
+$token = Get-NtToken -Filtered -RestrictedSids RC -SidsToDisable WD -Flags DisableMaxPrivileges
+# 
+Get-NtTokenGroup $token -Attributes UseForDenyOnly
+# Name     Attributes
+# ----     ----------
+# Everyone UseForDenyOnly
+Get-NtTokenGroup $token -Restricted
+# Name                    Attributes
+# ----                    ----------
+# NT AUTHORITY\RESTRICTED Mandatory, EnabledByDefault, Enabled
+Get-NtTokenPrivilege $token
+# Name                    Luid              Enabled
+# ----                    ----              -------
+# SeChangeNotifyPrivilege 00000000-00000017 True
+$token.Restricted
+# True
+```
+
+创建了一个限制令牌，该令牌被映射到RC（NT AUTHORITY\RESTRICTED），并指定了WD（Everyone组）的属性为UseForDenyOnly，最后指定了一个选项来尽量取消该token的特权。后面四行代码都是展示创建的令牌的属性
+
+#### Write-Restricted Tokens
+
+也属于限制令牌的一种，但只限制了写权限。可以通过在NtFilterToken中传入WRITE_RESTRICTED创建。但这种限制令牌实用性比较低，因为它无法阻止应用读取敏感信息
+
+```powershell
+$token = Get-NtToken -Filtered -RestrictedSids WR -Flags WriteRestricted
+```
+
+使用WR，表示该令牌会被映射到NT AUTHORITY\WRITE RESTRICTED
+
+#### AppContainer and Lowbox Tokens
+
+使用NtCreateLowBoxToken创建，当创建该类token时，需要指定一个Package SID和一系列capability SID，前者类似正常令牌中的User SID，后者则类似于限制令牌的SID
+
+capability SID分为两类
+
+* Legacy  包含了一系列简单的预定义SID来限制程序可使用的资源
+
+* Named  该类SID的RID由给定字串派生，如上面的WR代表`NT AUTHORITY\WRITE RESTRICTED`，这类别名见书中附录B
+
+下表展示了Legacy中预定义的SID
+
+![](pic/19.png)
+
+![](pic/20.png)
+
+### What Makes an Administrator User
+
+在linux中，UID为0的root用户拥有最高权限，可以做任意操作。但在windows中Administrator并不可以执行任意操作，相反是可以限制Administrator的各种权限的。windows中与root拥有类似权限的用户是system
+
+Administrator有三个主要特性
+
+* 当某个用户被配置为Administrator，默认会将其加入`BUILTIN\Administrators`组
+
+* Administrator会被赋予一些额外的权限，如SeDebugPrivilege
+
+* Administrator运行的完整性等级为High，系统服务则运行在System等级
+
+书中提供了一些方法判断一个token是否为Administrator，包括Elevated属性、一些可用的特权以及一些特殊的RID
+
+完整性等级为High的token不一定是Administrator，反过来Administrator也可能运行在低完整性等级，但某些特权要求进程运行在高完整性等级
+
+### User Account Control
+
+Windows默认在安装时第一个创建的账户具有Administrator权限，但在Vista之前没有对相关行为进行限制，导致用户可能默认使用的都是Administrator账号。Vista之后引入了UAC机制，该机制下默认用户仍是Administrator，但默认会禁用Administrator组相关权限，当需要运行Administrator程序时系统会弹出UAC窗口，若通过则提权运行该程序
+
+若一个程序默认需要管理员权限执行，则会调用RPC函数RAiLaunchAdminProcess，另一种显式采用管理员权限运行进程的方式是使用runas执行ShellExecute
+
+#### Linked Tokens and Elevation Type
+
+对于Administrator用户，windows采用一种称为split-token的方式，该token分为两部分
+
+* Limited  非特权的token，用于运行大多数程序
+
+* Full 为一个Administrator token，只有在提权后才能用
+
+split-token有一个域将上述两部分token链接，称为linked token
+
+#### UI Access
+
+Vista的另一个安全机制是用户接口权限隔离（User Interface Privilege Isolation，UIPI），可以防止低权限用户与高权限用户程序进行交互。但这里有一个问题，就是程序需要跟键盘 鼠标等进行交互，因此token可以设置一个叫UI access的标志，若设置了该标志则与桌面环境进行交互时不需要经过UIPI
+
+需要通过ShellExecute函数创建有UI access权限的进程
+
+#### Virtualization
+
+
+
+# reference
+
+* [授权 - Win32 apps | Microsoft Learn](https://learn.microsoft.com/zh-cn/windows/win32/secauthz/authorization-portal)
+- [【windows 访问控制】一、访问令牌 - 小林野夫 - 博客园 (cnblogs.com)](https://www.cnblogs.com/cdaniu/p/15630161.html)
+
+- [Windows 访问控制模型（一） | MYZXCG](https://myzxcg.com/2021/08/Windows-%E8%AE%BF%E9%97%AE%E6%8E%A7%E5%88%B6%E6%A8%A1%E5%9E%8B%E4%B8%80/)
+* [TOKEN_GROUPS (winnt.h) - Win32 apps | Microsoft Learn](https://learn.microsoft.com/zh-cn/windows/win32/api/winnt/ns-winnt-token_groups)
