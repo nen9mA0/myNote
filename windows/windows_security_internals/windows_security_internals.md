@@ -587,9 +587,9 @@ ls NtObject:\REGISTRY
 
 * 环境变量
 
-注意，可执行文件目录仍可能被劫持，因此对于特权进程，应该确保其目录只有特权用户可以写入。此外，还有一个潜在的安全问题：若传入LoadLibrary的名字不带`.dll`，函数会自动加上，如果传入的名字带了一个`.`，函数只会把`.`去掉；这里假设主程序在加载前校验了dll，但未加上扩展名（如LIB），而文件夹下存在`LIB.dll`，则会导致最终加载的文件与校验的文件不符
-
-为了加快程序加载，内核在OMNS中为常用系统库设置了一个section `KnownDlls`，该段的dll都是加载在共享内存中的，由此也避免了系统库被劫持的问题
+> 注意，可执行文件目录仍可能被劫持，因此对于特权进程，应该确保其目录只有特权用户可以写入。此外，还有一个潜在的安全问题：若传入LoadLibrary的名字不带`.dll`，函数会自动加上，如果传入的名字带了一个`.`，函数只会把`.`去掉；这里假设主程序在加载前校验了dll，但未加上扩展名（如LIB），而文件夹下存在`LIB.dll`，则会导致最终加载的文件与校验的文件不符
+> 
+> 为了加快程序加载，内核在OMNS中为常用系统库设置了一个section `KnownDlls`，该段的dll都是加载在共享内存中的，由此也避免了系统库被劫持的问题
 
 ### The Win32 GUI
 
@@ -906,7 +906,7 @@ Token包含一些重要属性
 
 * session ID  创建进程的session ID
 
-当用户登录时，LSASS会为用户创建一个logon session（登录会话），该session会跟踪所有与该用户认证相关的资源（比如它会保存一份用户的credential）。logon session在创建时会分配一个独立的ID，这个ID就是每个进程中的Authentication ID，因此某个用户所有的进程都使用同一个ID（若某个用户在同一台机器上认证了两次，则SRM会分配新的Authentication ID）
+当用户登录时，LSASS会为用户创建一个logon session（登录会话），该session会跟踪所有与该用户认证相关的资源（比如它会保存一份用户的credential）。logon session在创建时会分配一个独立的ID，这个ID就是每个进程中的Authentication ID，因此某个用户所有的进程都使用同一个ID（若某个用户在同一台机器上认证了两次，如注销后重新登录，则SRM会分配新的Authentication ID）
 
 origin login ID标明了哪个logon session创建了token，若在计算机上登录了另一个账号，则该属性将用于调用该token的身份验证标识符（意思应该就是登录了另一个账号会更换session，但仍然可以使用这个域来调用原token）
 
@@ -1257,7 +1257,7 @@ TSA://ProcUnique NonInheritable, Unique UInt64    {568, 1508775258}
 
 LSASS在用户登录时会为其创建token，同时也有其他可以创建token的场景，比如一些用于服务的虚拟账号
 
-当拥有SeCreateTikenPrivilege时，可以使用NtCreateToken创建任意令牌
+当拥有SeCreateTokenPrivilege时，可以使用NtCreateToken创建任意令牌
 
 ref: [NtCreateToken - NtDoc (m417z.com)](https://ntdoc.m417z.com/ntcreatetoken)
 
@@ -2100,7 +2100,96 @@ SeSetSecurityDescriptorInfoEx不能修改哪些SecurityRequired设置为False的
 
 还有一个ACE标志Critical，windows内核会检查并阻止删除标记了Critical的ACE（但原文的意思好像是说修改安全描述符时就可以去掉该标志了）
 
+### Win32 Security APIs
 
+上面说过的一些对安全描述符操作的内核函数或者NTDLL函数有对应的用户态Win32 API
+
+| 函数名                           | 描述                                          | 对应的内核函数                |
+| ----------------------------- | ------------------------------------------- | ---------------------- |
+| GetKernelObjectSecurity       | 读取安全描述符属性                                   | NtQuerySecurityObject  |
+| SetKernelObjectSecurity       | 设置安全描述符属性                                   | NtSetSecurityObject    |
+| CreatePrivateObjectSecurityEx | 新建安全描述符                                     | RtlNewSecurityObjectEx |
+| SetPrivateObjectSecurityEx    | 修改资源的安全描述符                                  | RtlSetSecurityObjectEx |
+| GetNamedSecurityInfo          | 通过路径获取安全描述符                                 |                        |
+| SetNamedSecurityInfo          | 通过路径设置安全描述符                                 |                        |
+| GetInheritanceSource          | 获取当前安全描述符继承的源描述符（注意该函数只能作为信息参考，无法保证返回值的准确性） |                        |
+
+有一个需要注意的问题：当使用NtSetSecurityObject对一个文件/文件夹进行操作时，所有新的可继承ACE都不会传播到其子目录，但若使用SetNamedSecurityInfo则会遍历所有子文件夹和子文件，并且更新对应的安全描述符
+
+可以通过设置SecurityInformation的ProtectedDacl和ProtectedSacl来阻止ACL的自动继承；该位有点类似一个屏蔽位，当该位设置时，会屏蔽掉继承的属性，但若取消设置该位则会自动还原并将继承的属性合并到现有的ACL中
+
+> 注意，auto-inherit特性可能导致一些安全风险，比如CVE-2018-0983，特权程序的一个功能是调用SetNamedSecurityInfo重置用户传入的文件夹的安全描述符，而用户可以构造一个链接到系统文件夹的文件，从而使程序重置系统文件
+> 
+> 类似的漏洞是可能重现的，因此在设计类似功能时需要严格检查用户传入的路径，若是非特权用户最好是直接模拟其token进行操作
+
+### Server Security Descriptors and Compound ACEs
+
+服务安全描述符，内核支持两个控制标志来表示这类描述符：ServerSecurity DaclUntrusted，这种描述符只能在创建安全描述符时指定（创建对象或显式分配安全描述符）
+
+* ServerSecurity  表明调用者准备模拟其他用户的token
+  
+  > 这个控制位解决下述场景的安全问题：
+  > 
+  > 若一个普通的安全描述符在模拟过程中被创建，其owner和group SID会被设置为模拟令牌的SID，这会导致其对应创建的资源owner也被设置为模拟的用户，这可能是非预期的
+  > 
+  > 当设置ServerSecurity标志时，在这种情况下创建的安全描述符owner和group SID会被设置为主令牌的SID，且会把DACL中所有Allowed ACE变为AllowedCompound ACE
+
+* DaclUntrusted  与ServerSecurity一起使用。默认情况下认为DACL中的compound ACE是可信的，并会将其复制到新描述符中；但若设置了该位，则会将compound ACE的SID设置为主令牌的owner SID
+
+### A Summary of Inheritance Behavior
+
+DACL的继承规则，前两列为创建时的设置，后两列分别为设置了Auto-inherit和未设置Auto-inherit的结果
+
+| 父ACL     | 创建者ACL | 设置了Auto-inherit | 未设置Auto-inherit |
+| -------- | ------ | --------------- | --------------- |
+| 无        | 无      | 使用令牌默认ACL       | 使用令牌默认ACL       |
+| 无        | 已设置    | 使用创建者ACL        | 使用创建者ACL        |
+| 无可继承ACE  | 无      | 使用令牌默认ACL       | 使用令牌默认ACL       |
+| 存在可继承ACE | 无      | 使用父ACL          | 使用父ACL          |
+| 无可继承ACE  | 已设置    | 使用创建者ACL        | 使用创建者ACL        |
+| 存在可继承ACE | 已设置    | 使用创建者和父ACL      | 使用创建者ACL        |
+| 无可继承ACE  | 保护     | 使用创建者ACL        | 使用创建者ACL        |
+| 存在可继承ACE | 保护     | 使用创建者ACL        | 使用创建者ACL        |
+| 无可继承ACE  | 默认     | 使用创建者ACL        | 使用创建者ACL        |
+| 存在可继承ACE | 默认     | 使用父ACL          | 使用父ACL          |
+
+对于创建者ACL的几种状态：
+
+* 已设置（Present）：表示安全描述符设置了ACL（即使为NULL或空ACL）
+
+* 保护（Protected）：设置了DaclAutoInherit或SaclAutoInherit
+
+* 默认（Defaulted）：设置了DaclDefaulted或SaclDefaulted
+
+## 7. THE ACCESS CHECK PROCESS
+
+### Running a Access Check
+
+#### Kernel-Mode Access Checks
+
+由SeAccessCheck函数实现，包含下列参数
+
+* Security descriptor  安全描述符，需要包含owner和group SID
+
+* Security subject context  调用者的主令牌和模拟令牌
+
+* Desired access  调用者需要的访问权限
+
+* Access mode  设置为UserMode或KernelMode
+
+* Generic mapping  内核对象使用的权限映射表
+
+返回值包含
+
+* Granted access  用户获取的权限
+
+* Access status code  权限检查的结果（NT状态码）
+
+* Privileges  权限检查时需要的特权
+
+* Success code  布尔值，若为TRUE则说明权限检查成功
+
+若Granted access与Desired access存在差异，则success code会被设置为STATUS_ACCESS_DENIED
 
 # reference
 
