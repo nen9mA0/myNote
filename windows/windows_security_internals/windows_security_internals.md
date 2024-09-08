@@ -1,6 +1,6 @@
 # PART I: AN OVERVIEW OF THE WINDOWS
 
-## Setting up a powershell testing environment
+## 1. Setting up a powershell testing environment
 
 ### Configuring Powershell
 
@@ -176,7 +176,7 @@ Invoke-Command $script    # 调用方式2
 
 * 直接重定向
 
-## The Windows Kernel
+## 2. The Windows Kernel
 
 ![](pic/5.png)
 
@@ -555,7 +555,7 @@ ALPC子系统提供了一套单独的LPC机制，为S/C架构，使用NtCreateAl
 ls NtObject:\REGISTRY
 ```
 
-## User-Mode Applications
+## 3. User-Mode Applications
 
 ### Win32 and the User-Mode Windows APIS
 
@@ -587,9 +587,9 @@ ls NtObject:\REGISTRY
 
 * 环境变量
 
-注意，可执行文件目录仍可能被劫持，因此对于特权进程，应该确保其目录只有特权用户可以写入。此外，还有一个潜在的安全问题：若传入LoadLibrary的名字不带`.dll`，函数会自动加上，如果传入的名字带了一个`.`，函数只会把`.`去掉；这里假设主程序在加载前校验了dll，但未加上扩展名（如LIB），而文件夹下存在`LIB.dll`，则会导致最终加载的文件与校验的文件不符
-
-为了加快程序加载，内核在OMNS中为常用系统库设置了一个section `KnownDlls`，该段的dll都是加载在共享内存中的，由此也避免了系统库被劫持的问题
+> 注意，可执行文件目录仍可能被劫持，因此对于特权进程，应该确保其目录只有特权用户可以写入。此外，还有一个潜在的安全问题：若传入LoadLibrary的名字不带`.dll`，函数会自动加上，如果传入的名字带了一个`.`，函数只会把`.`去掉；这里假设主程序在加载前校验了dll，但未加上扩展名（如LIB），而文件夹下存在`LIB.dll`，则会导致最终加载的文件与校验的文件不符
+> 
+> 为了加快程序加载，内核在OMNS中为常用系统库设置了一个section `KnownDlls`，该段的dll都是加载在共享内存中的，由此也避免了系统库被劫持的问题
 
 ### The Win32 GUI
 
@@ -691,7 +691,7 @@ NTSTATUS NtCreateMutant(
 
 > 注意：Win32API使用NUL结尾的字符串作为参数，而内核函数使用标记了长度的字符串作为参数，因此内核函数的路径可以包含NUL，这可能导致Win32API访问不到对应注册表，而内核函数可以情况，导致安全问题
 
-#### DOS Devoce Paths
+#### DOS Device Paths
 
 内核函数调用的是NT path，而Win32 API使用的是DOS path（即带盘符的路径）。NTDLL使用RtlDosPathNameToNtPathName做转换，例如`C:\Windows`会被转换成`\??\C:\Windows`，其中`\??`前缀称为DOS设备映射前缀（DOS device map prefix），它用于通知对象管理器查找盘符应分为两步：
 
@@ -852,7 +852,7 @@ ref:
 
 * [Windows 访问控制模型（一） | MYZXCG](https://myzxcg.com/2021/08/Windows-%E8%AE%BF%E9%97%AE%E6%8E%A7%E5%88%B6%E6%A8%A1%E5%9E%8B%E4%B8%80/)
 
-## SECURITY ACCESS TOKENS
+## 4. SECURITY ACCESS TOKENS
 
 ### Primary Tokens
 
@@ -906,9 +906,9 @@ Token包含一些重要属性
 
 * session ID  创建进程的session ID
 
-当用户登录时，LSASS会为用户创建一个logon session（登录会话），该session会跟踪所有与该用户认证相关的资源（比如它会保存一份用户的credential）。logon session在创建时会分配一个独立的ID，这个ID就是每个进程中的Authentication ID，因此某个用户所有的进程都使用同一个ID（若某个用户在同一台机器上认证了两次，则SRM会分配新的Authentication ID）
+当用户登录时，LSASS会为用户创建一个logon session（登录会话），该session会跟踪所有与该用户认证相关的资源（比如它会保存一份用户的credential）。logon session在创建时会分配一个独立的ID，这个ID就是每个进程中的Authentication ID，因此某个用户所有的进程都使用同一个ID（若某个用户在同一台机器上认证了两次，如注销后重新登录，则SRM会分配新的Authentication ID）
 
-origin login ID标明了哪个logon session创建了token，若在计算机上登录了另一个账号，则该属性将用于调用该token的身份验证标识符（意思应该就是登录了另一个账号会更换session，但仍然可以使用这个域来调用该token）
+origin login ID标明了哪个logon session创建了token，若在计算机上登录了另一个账号，则该属性将用于调用该token的身份验证标识符（意思应该就是登录了另一个账号会更换session，但仍然可以使用这个域来调用原token）
 
 SRM预定义了四个Authentication ID
 
@@ -971,7 +971,7 @@ SQoS，用于控制其他服务是否能够模拟当前线程的令牌，场景�
   
   若不启用，服务可以在其中更改传入令牌的权限和组，之后再应用这个令牌
 
-> 模拟等级为Anonymous与使用ANONYMOUS LOGON令牌登录不一样，前者无论资源的安全等级设置为上面都无法通过access check
+> 模拟等级为Anonymous与使用ANONYMOUS LOGON令牌登录不一样，前者无论资源的安全等级设置为什么都无法通过access check
 > 
 > Kernel实现了一个函数NtImpersonateAnonymousToken使程序可以获取ANONYMOUS用户的token
 
@@ -1172,7 +1172,7 @@ $token = Get-NtToken -Filtered -RestrictedSids WR -Flags WriteRestricted
 
 #### AppContainer and Lowbox Tokens
 
-使用NtCreateLowBoxToken创建，当创建该类token时，需要指定一个Package SID和一系列capability SID，前者类似正常令牌中的User SID，后者则类似于限制令牌的SID
+使用NtCreateLowBoxToken创建，当创建该类token时，需要指定一个Package SID和capability SID列表，前者类似正常令牌中的User SID，后者则类似于限制令牌的SID
 
 capability SID分为两类
 
@@ -1226,7 +1226,970 @@ Vista的另一个安全机制是用户接口权限隔离（User Interface Privil
 
 #### Virtualization
 
+UAC机制带来的一个问题是，一些老程序会往现在只有管理员有权限的文件夹或注册表写入，因此引入了一个标志位，当该标志位使能时，会将这些程序对系统文件夹的读写重定位到用户目录下，如`C:\Windows`重定位到`C:\Users\<User>\AppData\Local\VirtualStore\Windows`
 
+### Security Attributes
+
+一个token的安全属性可能包含三类：local / user claims / device claims
+
+可能有下列数据类型
+
+![](pic/21.png)每个安全属性值都可以有下述标志位
+
+![](pic/22.png)
+
+几乎所有进程的token都含有`TSA://ProcUnique`这个安全属性，该安全属性会在进程创建时分配一个LUID。以该属性为例
+
+```powershell
+> Show-NtTokenEffective -SecurityAttributes
+SECURITY ATTRIBUTES
+-------------------
+Name             Flags                  ValueType Values
+----             -----                  --------- ------
+TSA://ProcUnique NonInheritable, Unique UInt64    {568, 1508775258}
+```
+
+这里的安全属性值由两个UInt64组成，标志为NonInheritable和Unique，前者代表该安全属性不会被传递给该进程创建的新进程token，后者代表当内核发现同名安全属性时不能进行自动合并
+
+设置local安全属性需要SeTcbPrivilege，user claims和device claims则只能在创建token时设置
+
+### Creating Tokens
+
+LSASS在用户登录时会为其创建token，同时也有其他可以创建token的场景，比如一些用于服务的虚拟账号
+
+当拥有SeCreateTokenPrivilege时，可以使用NtCreateToken创建任意令牌
+
+ref: [NtCreateToken - NtDoc (m417z.com)](https://ntdoc.m417z.com/ntcreatetoken)
+
+```c
+NTSYSCALLAPI
+NTSTATUS
+NTAPI
+NtCreateToken(
+    _Out_ PHANDLE TokenHandle,
+    _In_ ACCESS_MASK DesiredAccess,
+    _In_opt_ POBJECT_ATTRIBUTES ObjectAttributes,
+    _In_ TOKEN_TYPE Type,
+    _In_ PLUID AuthenticationId,
+    _In_ PLARGE_INTEGER ExpirationTime,
+    _In_ PTOKEN_USER User,
+    _In_ PTOKEN_GROUPS Groups,
+    _In_ PTOKEN_PRIVILEGES Privileges,
+    _In_opt_ PTOKEN_OWNER Owner,
+    _In_ PTOKEN_PRIMARY_GROUP PrimaryGroup,
+    _In_opt_ PTOKEN_DEFAULT_DACL DefaultDacl,
+    _In_ PTOKEN_SOURCE Source
+    );
+```
+
+* Type  主令牌还是模拟令牌
+
+* AuthenticationId  令牌的Authentication ID，可以任意设置
+
+* ExpirationTime  令牌在多久后失效
+
+* User  User SID
+
+* Groups  令牌组的SID列表
+
+* Privileges  需要的特权列表
+
+* Owner  可选，指向新创建对象默认owner的SID，其中owner必须是一个用户或用户组，且包含SE_GROUP_OWNER属性
+
+* PrimaryGroup  可选，指向新创建对象默认primary group的SID，该值必须是前面Groups参数指定的组中包含的用户或组
+
+* Source  该token的创建者
+
+此外，通过调用NtCreateTokenEx还可以提供下列额外参数
+
+* DeviceGroups  设备的SID列表
+
+* DeviceAttributes  device的安全属性列表
+
+* UserAttributes  用户的安全属性列表
+
+* MandatoryPolicy  用于指定token的强制完整性策略
+
+### Token Assignment
+
+如果一个普通用户可以分配任意主令牌或模拟令牌，则在涉及模拟令牌的场景中可以任意访问其他用户的资源。因此SRM设计了一套机制限制那些没有SeAssignPrimaryTokenPrivilege和SeImpersonationPrivilege的普通用户的权限
+
+#### Assigning a Primary Token
+
+进程以以下三个方式分配主令牌。主令牌只能在进程开始前设置，一旦进程开始，就不能对其进行更改
+
+* 从父进程继承，最常见
+
+* 创建进程时，如使用CreateProcessAsUser
+
+* 在进程执行前通过NtSetInformationProcess设置
+
+若不是以父进程继承的方式传递，则令牌需要有AssignPrimary的访问权限，并且会以句柄的形式赋值给进程。在赋值令牌前SRM会进行其他检查以防止进程获得高权限token（除非调用者的主令牌有SeAssignPrimaryTokenPrivilege）
+
+内核函数SeIsTokenAssignableToProcess执行令牌检查，首先会检查待分配令牌的完整性等级是否小于等于当前进程的主令牌，其次会检查令牌是否为调用者主令牌的子令牌，或是否为调用者主令牌的同级令牌（基于现有令牌的相同认证会话创建的令牌，其父令牌ID和认证ID与现有令牌相同），其中还会检查当前认证会话是否为特殊的同级会话（一个罕见的配置，具体见书）。该函数不会检查当前token的用户SID
+
+![](pic/23.png)
+
+runas命令就是使用CreateProcessWithLogon函数，从系统服务创建一个对应用户的进程
+
+书上使用一个实例讲解了令牌检查的一些特性，建议理解一下
+
+#### Assigning an Impersonation Token
+
+前文讲述模拟令牌时说过如何分配模拟令牌，若是显式创建，则句柄必须有Impersonate权限
+
+模拟令牌的检查由SeTokenCanImpersonate完成，该检查比较复杂
+
+![](pic/24.png)
+
+注意，windows系统允许B进程给A进程的线程分配模拟令牌，因此需要说明下面关于主令牌检查都是线程所在进程的主令牌，而非线程令牌对应的主令牌
+
+* 若令牌模拟等级为Identification或Anonymous，或令牌的认证ID为anonymous用户，直接通过（因为这些设置不会导致安全风险）
+
+* 若有SeImpersonatePrivilege权限，则直接通过
+
+* 比较主令牌和模拟令牌的完整性等级，仅当主令牌大于等于模拟令牌时通过
+
+* 比较认证ID（Authentication ID）和初始登录ID（origin login ID）
+  
+  * 若模拟令牌的初始登录ID等于主令牌的认证ID，则通过
+    
+    > 本章之前讨论过，普通用户的初始登录ID都被设置为SYSTEM用户的认证ID，这是因为认证进程是以SYSTEM用户运行的。因此SYSTEM进程只要满足完整性等级的检查就可以模拟任何用户的令牌，即使没有SeImpersonatePrivilege权限
+  
+  * 否则继续下列检查
+
+* 检查主令牌的用户SID是否等于模拟令牌的用户SID，若不等则拒绝，否则继续下列检查
+  
+  > 该项检查用于防止进程在没有获得其他用户凭据的情况下获取该用户的模拟令牌。若需要模拟其他用户，LSASS在生成模拟令牌时会将其初始登录ID设置成调用者的认证ID，从而让有相应凭据的调用可以直接通过上一个检查
+
+* 检查Elevated标志，若模拟令牌设置了该标志而主令牌没有，则拒绝
+  
+  >  该检查用于防止通过获取一个管理员令牌来提权，在win10前没有这项检查
+
+* sandboxing相关检查。若模拟的是一个lowbox令牌，其package SID必须相同，或是主令牌的限制package SID
+  
+  > 该检查确保调用者获取的模拟令牌沙箱限制不会比原来的lowbox令牌少。但该检查并不比较capabilities列表，因为对于一个限制令牌，其只能创建一个限制令牌，对于写限制令牌也一样。SRM使用其他机制来防止获取一个限制更少的sandbox令牌
+
+* 检查当前会话是否为session 0，若是则拒绝
+  
+  > 该项检查用于防止用户获取一个session 0的模拟令牌
+
+**注意：** 若检查没有通过，函数不会直接拒绝分配令牌，而是将传入的令牌复制一份，并且将其模拟等级设置为Identification。因此即使分配失败，线程仍然可以检查令牌的属性
+
+## 5. SECURITY DESCRIPTORS
+
+### The Structure of a Security Descriptor
+
+```c
+typedef struct _SECURITY_DESCRIPTOR {
+  BYTE                        Revision;
+  BYTE                        Sbz1;
+  SECURITY_DESCRIPTOR_CONTROL Control;
+  PSID                        Owner;
+  PSID                        Group;
+  PACL                        Sacl;
+  PACL                        Dacl;
+} SECURITY_DESCRIPTOR, *PISECURITY_DESCRIPTOR;
+```
+
+由七个部分组成
+
+* Revision  版本，总为1
+
+* Sbzl  可选的资源管理标志，由活动目录（Active Directory）使用
+
+* Control  控制位，定义了安全描述符定义的哪些组件可用、安全描述符和组件如何建立以及当将安全描述符应用到对象时应如何处理)
+  
+  ![](pic/25.png)
+
+* Owner  【可选】所有者SID，可以是单用户也可以是用户组。owner有对自己资源的完全控制，并且系统会防止资源对owner锁定的操作
+
+* Group  【可选】组SID，基本没用，以前用来适配POSIX子系统的
+
+* Sacl  【可选】自由访问控制列表（discretionary access control list, DACL），包含一系列访问控制入口（Access Control Entry，ACE），用于定义资源的访问权限，具体见后文
+
+* Dacl  【可选】系统访问控制列表（security access control list, SACL），也包含一系列ACE，用于定义资源的安全审计事件，以及一些其他信息
+
+当控制位为DaclPresent/SaclPresent时，设置的DACL/SACL才生效，可以指定其为NULL，表示该ACL没有定义安全性，SRM会忽略该ACL。与之区分，不包含ACE的称为empty ACL，此时定义了ACL但没有包含ACE
+
+### The Structure of a SID
+
+ref: [安全标识符 | Microsoft Learn](https://learn.microsoft.com/zh-cn/windows-server/identity/ad-ds/manage/understand-security-identifiers)
+
+![](pic/26.png)
+
+包含四个部分
+
+* Revision  总是为1
+
+* Relative identifier count  SID中包含的RID数量
+
+* Security authority  标识符颁发机构，可以是任意值，windows预定义了下列值)
+  
+  ![](pic/27.png)
+
+* Relative identifiers  标识用户或组的32位数
+
+书中用下列几个例子来说明SID的组成
+
+* `BUILTIN  S-1-5-32`  Revision:1，标识符颁发机构5，包含一个RID 32，该RID为domain SID
+
+* `BUILTIN\Users  S-1-5-32-545`  32为domain SID，545为该组下该用户的SID
+
+### Absolute and Relative Security Descriptors
+
+内核支持两种安全描述符格式，绝对和相对，根据属性SelfRelative来决定当前描述符采用的哪种表示
+
+![](pic/28.png)
+
+两种格式的头都是一样的，为32位，分别为8位版本，8位资源管理标志和16位控制位
+
+两种格式的区别只在于后面4个元素的存储方式，绝对格式后面存了4个指针指向对应的元素，相对格式则使用偏移量来表示
+
+![](pic/29.png)
+
+![](pic/30.png)
+
+下面是一个例子
+
+![](pic/37.png)
+
+### Access Control List Headers and Entries
+
+#### The Header
+
+ACL由一个头部和多个ACE组成
+
+![](pic/31.png)
+
+ACL头部定义如下
+
+![](pic/32.png)
+
+Sbz1和Sbz2为保留位，Revision则支持下列值，若版本不一致则ACL不可用
+
+* Default  默认版本，值为2，支持所有基本ACE类型
+
+* Compound  值为3，在基本ACE类型的基础上添加对一些复合ACE类型的支持
+
+* Object  值为4，在Compound基础上添加对一些对象的支持
+
+#### The ACE List
+
+![](pic/33.png)
+
+对包含头部和具体的数据，头部对于所有类型的ACE都一样
+
+ACE flags主要定义了ACE的继承规则
+
+![](pic/36.png)
+
+下面为所有的ACE类型
+
+![](pic/34.png)
+
+![](pic/35.png)
+
+三类ACE结构如下
+
+* Normal ACE，即Default指定的格式
+  
+  * Access Mask（32bit）
+  
+  * SID（变长）
+
+* Compound ACE，模拟时使用，它可以同时向模拟的调用方和进程用户提供访问权限（这句话没太懂），新版windows中似乎被弃用
+  
+  * Access Mask（32bit）
+  
+  * Compound ACE type（16bit）  设为1，表示该ACE用于模拟
+  
+  * Reserved  （16bit）为0
+  
+  * Server SID（变长）对应服务用户的SID
+  
+  * SID（变长）模拟用户的SID
+
+* Object ACE，用于Active Directory Domain Services。Active Directory使用128位GUID来表示一个目录服务对象类型（directory service object type）
+  
+  * Access Mask（32bit）
+  
+  * Flags（32bit）用于指示存在下列哪些GUID
+  
+  * Object Type（16Byte）目录服务对象类型的GUID
+  
+  * Inherited Object Type（16Byte）继承的对象GUID
+  
+  * SID（变长）
+
+一条ACE可能比上面描述的结构大，因为ACE可能会需要一些额外空间来放置一些非结构化数据，如callback类型的ACE，定义了在进行access check时需要使用的条件表达式
+
+Win8前内核没有对callback类型的条件表达式支持，因此需要调用AuthzAccessCheck函数来处理这类回调，而Win8之后不仅保留了原来的方法，还内置了一些条件表达式解析
+
+### Constructing and Manipulating Security Descriptors
+
+#### Creating a New Security Descriptor
+
+介绍了怎么用powershell创建安全描述符并且添加属性和ACL
+
+#### Ordering the ACEs
+
+由于access check的检查顺序，ACL的排序需要满足一些排序规则。注意SRM本身并不会对ACL的排序进行检查，其相信传入的ACL排序满足规范
+
+* 所有Denied类型的ACE必须在Allowed类型前
+
+* 所有Allowed类型的ACE必须在Allowed类型的对象ACE前
+
+* 所有Denied类型的ACE必须在Denied类型的对象ACE前
+
+* 所有非继承的ACE必须在设置了Inherited标志的ACE前
+
+书中还展示了如何使用powershell检查并重新按规范排序ACL
+
+#### Formatting Security Descriptors
+
+该节主要讲了如何在powershell中打印安全描述符
+
+#### Converting to and from a Relative Security Descriptor
+
+该节主要讲了如何在powershell中将二进制数组转换为安全描述符
+
+### The Security Descriptor Definition Language
+
+安全描述符定义语言（SDDL）
+
+ref: [Security Descriptor String Format - Win32 apps | Microsoft Learn](https://learn.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-string-format)
+
+#### SID
+
+由下列几个元素组成
+
+* S  前缀字母，用于表示该字符串是一个SDDL SID
+
+* 版本号，SID的revision字段，为1
+
+* 标识符颁发机构，SID的security authority字段，有下列预定义值
+  
+  ![](pic/27.png)
+
+* 两个RID（relative identifier），用于表示用户组和用户
+
+SID本质类似文件夹的层级结构，`S-1`是统一的，第三个值表示颁发机构，第四个值（RID 0）表示用户组，第五个值（RID 1）代表用户
+
+#### 安全描述符
+
+SDDL也可以用于定义安全描述符，但需要注意的是，某些安全描述符的控制位或者ACE类型并没有对应的SDDL描述，因此SDDL并不能定义所有种类的安全描述符
+
+##### 基本构成
+
+包含四类前缀
+
+* O  Owner SID
+
+* G  Group SID
+
+* D  DACL
+
+* S  SACL
+
+系统预定义了一些SID的别名
+
+![](pic/38.png)
+
+##### ACL
+
+其中ACL定义的格式为
+
+```
+ACLFlags(ACE0)(ACE1)...(ACEn)
+```
+
+ACLFlags位包含了安全描述符的控制位（Control）中与DACL和SACL有关的位
+
+![](pic/39.png)
+
+##### ACE
+
+每个ACE的格式如下
+
+```
+(Type;Flags;Access;ObjectType;InheritedObjectType;SID[;ExtraData])
+```
+
+Type部分取值如下，SDDL都采用缩写来代表对应的类型
+
+![](pic/40.png)
+
+第二个值为Flags，即ACE的flags域，取值与对应缩写的表为
+
+![](pic/41.png)
+
+![](pic/42.png)
+
+第三个值为Access，该值可以是八进制/十进制/十六进制数，也可以是一个Access string列表
+
+![](pic/43.png)
+
+注意上表并没有包含所有的访问权限标志，这是因为SDDL一开始是为描述目录服务对象（Directory Service Object）设计的
+
+为了扩展SDDL的描述能力，语言也额外提供了一些对注册表和文件的访问权限标志的别名
+
+![](pic/44.png)
+
+第4、5个值为ObjectType和InheritedObjectType，用于object ACE中。SDDL使用字符串格式的GUID，下列为一些预定义的GUID
+
+![](pic/45.png)
+
+第6个值为SID，即ACE的SID域
+
+最后一个组件是一些可选的附加信息，比如在callback ACE中指定了条件表达式，或是在ResourceAttribute ACE中指定了安全属性
+
+##### 条件表达式
+
+SDDL语法定义了四类条件表达式元素
+
+* Simple  用于引用本地安全属性，如`WIN://TokenId`
+
+* Device  用于声明设备，如`@Device.ABC`
+
+* User  用于声明用户，如`@User.XYZ`
+
+* Resource  用于资源属性，如`@Resource.QRS`
+
+表达式中的类型有5类
+
+![](pic/46.png)
+
+一元运算符主要包含下列几种
+
+| 运算符                             | 描述                                          |
+| ------------------------------- | ------------------------------------------- |
+| Exists ATTR                     | 是否存在安全属性ATTR                                |
+| Not_Exist ATTR                  |                                             |
+| Member_of {SIDLIST}             | 令牌组是否包含SIDLIST中所有的SID                       |
+| Not_Member_of {SIDLIST}         |                                             |
+| Device_Member_of {SIDLIST}      | 令牌设备组（token device group）是否包含SIDLIST中所有的SID |
+| Not_Device_Member_of {SIDLIST}  |                                             |
+| Member_of_Any {SIDLIST}         | 令牌组是否包含SIDLIST中的任意SID                       |
+| Not_Member_of_Any {SIDLIST}     |                                             |
+| Device_Member_Any {SIDLIST}     | 令牌设备组是否包含SIDLIST中的任意SID                     |
+| Not_Device_Member_Any {SIDLIST} |                                             |
+| !(EXPR)                         | 逻辑非                                         |
+
+二元运算符主要包含下列几种
+
+| 运算符                         | 描述                   |
+| --------------------------- | -------------------- |
+| ATTR Contains VALUE         | 安全属性ATTR是否包含值VALUE   |
+| ATTR Not_Contains VALUE     |                      |
+| ATTR Any_of {VALUELIST}     | 列表中是否存在任意值等于安全属性ATTR |
+| ATTR Not_Any_of {VALUELIST} |                      |
+| ATTR == VALUE               | 安全属性ATTR是否等于VALUE    |
+| ATTR != VALUE               |                      |
+| ATTR < VALUE                |                      |
+| ATTR <= VALUE               |                      |
+| ATTR > VALUE                |                      |
+| ATTR >= VALUE               |                      |
+| EXPR && EXPR                | 逻辑与                  |
+| EXPR \|                     | EXPR                 |
+
+下面以一个包含条件表达式的callback ACE为实例
+
+```
+(ZA;;GA;;;WD;(WIN://TokenId == "XYZ"))
+
+
+类型: AllowCallbackObject
+flags: 无
+Access: Generic All
+ObjectType: 无
+InheritedObjectType: 无
+SID: Everyone
+条件表达式: WIN://TokenId == "XYZ"
+```
+
+##### Resource ACE
+
+这类ACE格式如下
+
+```
+"AttrName",AttrType,AttrFlags,AttrValue(,AttrValue...)
+```
+
+* AttrName  安全属性的名称
+
+* AttrType  安全属性类型，包含下列值
+  
+  ![](pic/47.png)
+
+* AttrFlags  一个hex数，表示安全属性标志（flags）
+
+* AttrValue  一个或多个值，与安全属性类型相关
+
+##### Mandatory Label
+
+SACL中定义的一种ACE，主要的格式与普通ACE基本相同，除了两个点
+
+* Access域用于表示强制性策略，包括
+  
+  | Access string | Access name   | Access mask |
+  | ------------- | ------------- | ----------- |
+  | NX            | No Execute Up | 0x00000004  |
+  | NR            | No Read Up    | 0x00000002  |
+  | NW            | No Write Up   | 0x00000001  |
+
+* SID域用于表示mandatory label的完整性等级，主要有下列值
+  
+  | SID alias | Name              | SDDL SID     |
+  | --------- | ----------------- | ------------ |
+  | LW        | 完整性等级 Low         | S-1-16-4096  |
+  | ME        | 完整性等级 Medium      | S-1-16-8192  |
+  | MP        | 完整性等级 Medium Plus | S-1-16-8448  |
+  | HI        | 完整性等级 High        | S-1-16-12288 |
+  | SI        | 完整性等级 System      | S-1-16-16384 |
+
+##### 实例
+
+下面通过一个实例来解析安全描述符的各个组件
+
+```
+O:WD
+G:WD
+D:AI(D;;GA;;;AN)(A;;CCDC;;;S-1-5-21-2318445812-3516008893-216915059-1002)(A;;CC;;;WD)
+S:P(AU;FA;SD;;;WD)(ML;;NW;;;LW) 
+
+Owner: Everyone
+Group: Everyone
+DACL: 属性 DaclAutoInherited
+    ACE0: 
+        类型: Denied
+        flags: 无
+        Access: Generic All
+        ObjectType: 无
+        InheritedObjectType: 无
+        SID: NT AUTHORITY\ANONYMOUS LOGON
+    ACE1:
+        类型: Allowed
+        flags: 无
+        Access: Create Child/Delete Child
+        ObjectType: 无
+        InheritedObjectType: 无
+        SID: S-1-5-21-2318445812-3516008893-216915059-1002
+    ACE2:
+        类型: Allowed
+        flags: 无
+        Access: Create Child
+        ObjectType: 无
+        InheritedObjectType: 无
+        SID: Everyone
+SACL: 属性 SaclProtected
+    ACE0:
+        类型: Audit
+        flags: FailedAccess
+        Access: Delete
+        ObjectType: 无
+        InheritedObjectType: 无
+        SID: Everyone
+    ACE1:
+        类型: MandatoryLabel
+        flags: 无
+        Access: No Write Up
+        ObjectType: 无
+        InheritedObjectType: 无
+        SID: 完整性等级Low
+```
+
+## 6. READING AND ASSIGNING SECURITY DESCRIPTORS
+
+### Reading Security Descriptors
+
+可以调用NtQuerySecurityObject
+
+```c
+__kernel_entry NTSYSCALLAPI NTSTATUS NtQuerySecurityObject(
+  [in]  HANDLE               Handle,
+  [in]  SECURITY_INFORMATION SecurityInformation,
+  [out] PSECURITY_DESCRIPTOR SecurityDescriptor,
+  [in]  ULONG                Length,
+  [out] PULONG               LengthNeeded
+);
+```
+
+* Handle  要获取安全描述符的内核对象句柄
+
+* SecurityInformation  要获取的安全描述符属性，不同属性需要不同的权限来获取
+  
+  ![](pic/48.png)
+
+绝大多数操作都需要ReadControl权限，而只有Sacl只要求AccessSystemSecurity，但要获取该权限我们需要申请SeSecurityPrivilege特权，即读取审计日志在windows系统中是一个特权操作
+
+### Assigning Security Descriptors
+
+#### Assigning a Security Descriptor During Resource Creation
+
+内核在创建一个新资源时会分配一个安全描述符，对于不同资源安全描述符的存放位置不同，比如文件的安全描述符需要存放在硬盘中，而一些临时的内核对象由对象管理器管理安全描述符
+
+内核提供了一系列函数为新的资源分配安全描述符，其中最常用的函数是SeAssignSecurityEx，该函数对应的ntdll导出函数为
+
+```c
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlNewSecurityObjectEx(
+    _In_opt_ PSECURITY_DESCRIPTOR ParentDescriptor,
+    _In_opt_ PSECURITY_DESCRIPTOR CreatorDescriptor,
+    _Out_ PSECURITY_DESCRIPTOR *NewDescriptor,
+    _In_opt_ GUID *ObjectType,
+    _In_ BOOLEAN IsDirectoryObject,
+    _In_ ULONG AutoInheritFlags, // SEF_*
+    _In_opt_ HANDLE Token,
+    _In_ PGENERIC_MAPPING GenericMapping
+    );
+```
+
+* Creator security descriptor  可选参数，新分配的安全描述符基于该描述符
+
+* Parent security descriptor  可选参数，新资源父对象的安全描述符
+
+* Object type  可选，正在创建对象类型的GUID
+
+* Container  指示新资源是否是container
+
+* Auto-inherit  一系列标志位，定义了继承的行为
+
+* Token  创建者令牌的句柄
+
+* Generic mapping  一个映射表，表示了通用访问权限到内核类型特定访问权限的映射
+
+> 下面以CreateMutant创建锁对象为例，说明这类函数是以什么参数调用SeAssignSecurityEx的
+> 
+> * Creator security descriptor  SECURITY_ATTRIBUTES结构的lpSecurityDescriptor属性
+> 
+> * Parent security descriptor  父目录的安全描述符，对于匿名锁对象来说为NULL
+> 
+> * Object type  没设置
+> 
+> * Container  设为False
+> 
+> * Auto-inherit
+>   
+>   * 若父安全描述符的控制位包含DaclAutoInherited位，且创建者无安全描述符或描述符中DACL缺失，则设为AutoInheritDacl
+>   
+>   * 若父安全描述符的控制位包含SaclAutoInherited位，且创建者无安全描述符或描述符中SACL缺失，则设为AutoInheritSacl
+> 
+> * Token  若调用者是模拟线程，则设置为模拟令牌，否则设置为调用者的主令牌
+> 
+> * Generic mapping  设置为mutant特定的映射
+> 
+> 这里没有设置Object type的原因是该参数并不被对象管理器或IO管理器使用，该属性主要用于控制Active Directory的继承
+
+Auto-inherit参数除了上述两个值，还可以取下列值
+
+![](pic/49.png)
+
+SeAssignSecurityEx函数最重要的参数就是父安全描述符和创建者安全描述符，下面同样以NtCreateMutant为例讨论各种情况，在书中有具体的powershell实例讲解，这里只记录了实例中归纳出的行为
+
+##### Setting Only the Creator Security Descriptor
+
+若指定了lpSecurityDescriptor属性，且是匿名的锁对象，则在创建安全描述符时不会指定Parent security descriptor，因此auto-inherit标志不会被设置
+
+此时安全描述符会从传入的token获取Owner和PrimaryGroup属性作为安全描述符的owner和group；当函数获取token的owner作为owner SID时，会检查creator的owner SID是否包含于token的user SID或group SID，若不是则无法分配；除非token拥有SeRestorePrivilege权限，或是Auto-inherit参数设置了AvoidOwnerCheck标志（直接调用内核函数创建对象时不会设置该标志）才能绕过该检查
+
+对于group则不会有安全检查，因为group在access check中并没有什么作用
+
+但SACL有相关限制：若在creator安全描述符的SACL中定义了审计类ACE，则内核将申请SeSecurityPrivilege
+
+在使用诸如NtCreateMutant的函数创建内核对象时，最终得到的内核对象安全描述符中DACL权限可能与我们传入的Creator安全描述符的DACL权限不同，如书中举的例子，Creator的DACL中只有一个有`GenericRead`权限的ACE，但创建出的锁对象DACL对应的ACE则是`ModifyState|ReadControl`权限。这是因为内核在创建对象时会传入一个权限映射表，将通用的安全描述符权限映射为相应内核对象的特定权限。除非ACE设置了`InheritOnly`标志取消这类映射行为
+
+##### Setting Neither the Creator nor the Parent Security Descriptor
+
+Owner和Group同样直接从token继承，DACL则采用token定义的默认DACL
+
+> 注意，如果直接创建一个匿名锁对象，且不提供创建者和父安全描述符，则内核会创建一个没有安全信息的锁对象，这是因为内核允许一些对象不包含任何访问控制信息，因为并不是所有内核对象都会在不同进程间共享，如匿名锁对象理论上不会共享，因此也没有必要设置其访问控制属性
+> 
+> 但对于匿名对象，仍有可能通过进程间通信共享对象句柄来实现匿名对象的共享，此时应该注意程序的安全性，因为对于没有安全描述符的对象而言，即使可以在传句柄前移除一些权限来控制其他进程的行为，其他进程仍可以通过复制句柄来重新获取这些权限。此外win8以后NtDuplicateObject添加了一个参数，用于告诉内核如果之后还有复制句柄的操作，会拒绝所有申请额外权限的请求
+
+##### Setting Only the Parent Security Descriptor
+
+在这种情况下就需要考虑继承相关的规则
+
+* 若父安全描述符没有设置任何Control位
+  
+  * Owner和Group从传入的token继承，与父安全描述符无关
+  
+  * ACE，主要由ACE Flags控制对象继承的行为
+    
+    总体而言，如下表：对象分为container对象和非container对象，ACE flags在不同类型对象中有不同的继承规则
+    
+    | Parent ACE flags                                          | Non-container object | Container object                   |
+    | --------------------------------------------------------- | -------------------- | ---------------------------------- |
+    | None                                                      | 不继承                  | 不继承                                |
+    | ObjectInherit                                             | None                 | ObjectInherit<br/>InheritOnly      |
+    | ContainerInherit                                          | 不继承                  | ContainerInherit                   |
+    | ObjectInherit<br/>NoPropagateInherit                      | None                 | 不继承                                |
+    | ContainerInherit<br/>NoPropagateInherit                   | 不继承                  | None                               |
+    | ContainerInherit<br/>ObjectInherit                        | None                 | ContainerInherit<br/>ObjectInherit |
+    | ContainerInherit<br/>ObjectInherit<br/>NoPropagateInherit | None                 | None                               |
+    
+    * 若没有设置继承相关的ACE标志，则从token继承默认DACL
+    
+    * 若设置了ObjectInherit（一般用在锁对象等），则新对象会直接继承该ACE的访问权限
+      
+      ```
+      父描述符ACE
+          BUILTIN\Users: (Allowed)(ObjectInherit, InheritOnly)(GenericAll)
+      新描述符的ACE
+          BUILTIN\Users: (Allowed)(None)(Full Access)
+      ```
+    
+    * 若设置了ContainerInherit（一般用在文件夹对象等），则新对象不仅会继承该ACE的访问权限，还会复制一份该ACE用于子对象的继承
+      
+      ```
+      父描述符ACE
+          BUILTIN\Users: (Allowed)(ContainerInherit, InheritOnly)(GenericAll)
+      新描述符的ACE
+          BUILTIN\Users: (Allowed)(None)(Full Access)
+          BUILTIN\Users: (Allowed)(ContainerInherit, InheritOnly)(GenericAll)
+      ```
+      
+      但若ACE设置了NoPropagateInherit标志，则不会复制
+    
+    * 若设置了ObjectInherit，但新对象是个Container对象，则新对象会传递该ACE，并且自动设置一个InheritOnly属性
+      
+      ```
+      父描述符ACE
+          BUILTIN\Users: (Allowed)(ObjectInherit)(GenericAll)
+      新描述符的ACE
+          BUILTIN\Users: (Allowed)(ObjectInherit, InheritOnly)(Full Access)
+      ```
+
+* 若父安全描述符设置了Control位，这里主要讨论DaclAutoInherit
+  
+  ```
+  父描述符ACE
+  <DACL> (Auto Inherited)
+      BUILTIN\Users: (Allowed)(ObjectInherit, InheritOnly)(GenericAll)
+  新描述符的ACE
+  <DACL> (Auto Inherited)
+      BUILTIN\Users: (Allowed)(Inherited)(Full Access)
+  ```
+  
+  使用该控制位进行继承与上面讨论的使用ACE标志进行继承除了粒度不一样，还有一个区别就是在用户模式下可以获知哪些ACE是由其他安全描述符继承的
+
+> 注意，在继承时存在ACE标志位对于不同类型的安全描述符定义不一致的问题。如书中的例子，父安全描述符（Directory类型）的ACE使用的标志位为GenericAll，但直接继承到Mutant对象时，该ACE对应的属性则为`ModifyState|Delete|ReadControl|WriteDac|WriteOwner`，这是因为对于Directory类型而言，GenericAll的值为0x000F000F，而对于Mutant类型可用的属性掩码为0x001F0001，因此继承时会将属性值更改为0x000F0001。这是个比较严重的问题，因为这意味着继承后的Mutant对象ACE缺少了Synchronize权限
+> 
+> 对于这个问题，有两类情景
+> 
+> * 对于父安全描述符与新描述符类型相同的情况，可以直接在创建时指定通用的访问权限，在调用RtlNewSecurityObjectEx创建新对象时就会根据传入的GenericMapping将其映射为特定对象的对应访问标志
+> 
+> * 对于父安全描述符与新描述符类型不同的情况，父安全描述符的访问标志已经转换为了特定对象的访问标志。对于这种情况可以对ACE额外设置一个InheritOnly标志，该标志表示该条ACE只用于继承，而不用于对象本身的访问控制，这种情况下在创建父安全描述符时不会对ACE标志进行转换，即其标志还是通用标志
+
+##### Setting Both the Creator and Parent Security Descriptors
+
+情况比较复杂，分几类讨论
+
+* 父安全描述符未设置Control位
+  
+  * 父安全描述符没有可继承的DACL
+    
+    * 使用类似于仅设置Creator的继承模式，即若Creator存在DACL，则直接复制，否则使用token的默认DACL
+  
+  * 父安全描述符存在可继承的DACL
+    
+    * Creator无DACL，则继承父安全描述符的DACL
+    
+    * Creator有DACL，则复制Creator的DACL，注意即使Creator的DACL为空也会采取该策略，而不是继承父安全描述符的DACL
+
+* 父安全描述符设置了DaclAutoInherit / SaclAutoInherit
+  
+  * Creator无DACL，则继承父安全描述符的DACL，并且会设置ACE的Inherited标志
+  
+  * Creator有DACL，则继承规则如图：新的DACL会合并Creator的非继承ACE和父安全描述符的可继承ACE（注意，从父安全描述符继承来的ACE会设置Inherited标志）
+    
+    ![](pic/50.png)
+    
+    > 还有一点需要说明的是，内核一般在创建的描述符时不会设置DaclAutoInherited标志，除非父安全描述符设置了该标志且新描述符不含DACL
+
+* Creator安全描述符设置了DaclProtected / SaclProtected，则无论父安全描述符的ACE是否可继承，都将只复制Creator安全描述符的ACE，并且清除ACE中的Inherited标志
+
+* Creator安全描述符设置了DaclDefault，该方式的一个场景是：我们无法预知父安全描述符是否有可继承ACE，但我们也不希望使用token提供的默认DACL（如对于文件和注册表，默认DACL包含临时登录SID，该SID不应该被保存到硬盘，否则可能导致用户越权），则可以使用该选项来提供一个默认DACL，此时当父安全描述符没有可继承ACE时会采用Creator安全描述符提供的ACE
+
+##### Replacing the CREATOR OWNER and CREATOR GROUP SIDs
+
+有些情况下可能需要在继承时更改ACE的SID，如对于共享文件夹的情况，任何用户都能在共享文件夹上创建子文件，但希望只有创建者能访问自己的文件，此时应该如何设置共享文件夹的安全描述符（共享文件夹的安全描述符会作为父安全描述符传入）
+
+为了解决上述场景，系统预定义了4个SID，当继承ACE时遇到这四类SID，会被替换为对应的实际SID
+
+* CREATOR OWNER (S-1-3-0)  替换为token的owner
+
+* CREATOR GROUP (S-1-3-1)  替换为token的primary group
+
+* CREATOR OWNER SERVER (S-1-3-2)  替换为服务的owner
+
+* CREATOR GROUP SERVER (S-1-3-3)  替换为服务的primary group
+
+需要注意的是，若指定了ContainerInherit标志，也会像先前讨论的一样展现出传播的特性，即
+
+```
+父安全描述符
+    CREATOR OWNER: (Allowed)(ContainerInherit, InheritOnly)(GenericWrite)
+新安全描述符
+    BUILTIN\User: (Allowed)(None)((CreateObject|CreateSubDirectory|ReadControl)
+    CREATOR OWNER: (Allowed)(ContainerInherit, InheritOnly)(GenericWrite)
+```
+
+##### Assigning Mandatory Labels
+
+Mandatory Label ACE包含资源的完整性等级。当我们使用一个完整性等级大于等于Medium的token创建安全描述符时，该描述符默认不会有mandatory label，否则会自动分配该标签
+
+可以显式创建Mandatory Label，但要求Mandatory Label ACE指定的完整性等级小于等于token的完整性等级，除非将AutoInherit标志设为AvoidPrivilegeCheck，或creator的token有SeRelabelPrivilege
+
+Mandatory Label同样可以设置继承ObjectInherit ContainerInherit以及InheritOnly，同样在继承时也需要遵循上述的完整性等级规则，且也可以通过同样方式绕过该规则
+
+创建安全描述符时，可以通过指定AutoInherit标志为MaclNoWriteUp MaclNoReadUp MaclNoExecuteUp来设置Mandatory Label
+
+![](pic/51.png)
+
+##### Determining Object Inheritance
+
+当父安全描述符包含object ACE时，由于object ACE包含两类GUID：
+
+* ObjectType GUID  用于access check
+
+* InheritedObjectType GUID  用于继承
+
+在创建新的安全描述符时，根据创建时是否指定了ObjectType参数，以及父安全描述符中ACE的InheritedObjectType值来判断是否应该继承该object ACE
+
+* 若没有指定ObjectType参数，但指定了InheritedObjectType，则直接继承
+
+* 若指定了ObjectType参数
+  
+  * 若没有指定InheritedObjectType，则继承
+  
+  * 若指定了InheritedObjectType，则若InheritedObjectType的GUID值等于ObjectType参数，就继承，否则不继承
+
+![](pic/52.png)
+
+除此之外，还需要根据ACE本身的标志（ObjectInherit等）决定是否可以继承
+
+GUID也可以是一个列表，当以列表形式给出时，继承规则与单GUID是类似的
+
+#### Assigning a Security Descriptor to an Existing Resource
+
+若需要修改已经存在的资源的安全描述符，则需要打开对应资源的句柄，使用NtSetSecurity修改。并且只有满足下表中权限的进程可以修改相应的安全描述符属性
+
+![](pic/53.png)
+
+NtSetSecurity底层调用内核的SeSetSecurityDescriptorInfoEx，前者与安全描述符的类型无关，而后者则需要指定类型。SeSetSecurityDescriptorInfoEx有一个用户态的导出函数RtlSetSecurityObjectEx，主要参数如下：
+
+* Modification security descriptor  用于接收输出的新安全描述符
+
+* Object security descriptor  原来要修改的安全描述符
+
+* Security information  要修改的安全描述符属性
+
+* Auto-inherit  修改AutoInherit属性
+
+* Generic mapping  与类型相关的属性映射表
+
+该函数主要操作就是将原来安全描述符的指定属性复制到新的描述符
+
+修改安全描述符的操作与创建差不多，需要进行所有者SID和Mandatory Label相关的检查
+
+SeSetSecurityDescriptorInfoEx不能修改哪些SecurityRequired设置为False的对象的安全描述符（因为这类对象没有安全描述符）
+
+还有一个ACE标志Critical，windows内核会检查并阻止删除标记了Critical的ACE（但原文的意思好像是说修改安全描述符时就可以去掉该标志了）
+
+### Win32 Security APIs
+
+上面说过的一些对安全描述符操作的内核函数或者NTDLL函数有对应的用户态Win32 API
+
+| 函数名                           | 描述                                          | 对应的内核函数                |
+| ----------------------------- | ------------------------------------------- | ---------------------- |
+| GetKernelObjectSecurity       | 读取安全描述符属性                                   | NtQuerySecurityObject  |
+| SetKernelObjectSecurity       | 设置安全描述符属性                                   | NtSetSecurityObject    |
+| CreatePrivateObjectSecurityEx | 新建安全描述符                                     | RtlNewSecurityObjectEx |
+| SetPrivateObjectSecurityEx    | 修改资源的安全描述符                                  | RtlSetSecurityObjectEx |
+| GetNamedSecurityInfo          | 通过路径获取安全描述符                                 |                        |
+| SetNamedSecurityInfo          | 通过路径设置安全描述符                                 |                        |
+| GetInheritanceSource          | 获取当前安全描述符继承的源描述符（注意该函数只能作为信息参考，无法保证返回值的准确性） |                        |
+
+有一个需要注意的问题：当使用NtSetSecurityObject对一个文件/文件夹进行操作时，所有新的可继承ACE都不会传播到其子目录，但若使用SetNamedSecurityInfo则会遍历所有子文件夹和子文件，并且更新对应的安全描述符
+
+可以通过设置SecurityInformation的ProtectedDacl和ProtectedSacl来阻止ACL的自动继承；该位有点类似一个屏蔽位，当该位设置时，会屏蔽掉继承的属性，但若取消设置该位则会自动还原并将继承的属性合并到现有的ACL中
+
+> 注意，auto-inherit特性可能导致一些安全风险，比如CVE-2018-0983，特权程序的一个功能是调用SetNamedSecurityInfo重置用户传入的文件夹的安全描述符，而用户可以构造一个链接到系统文件夹的文件，从而使程序重置系统文件
+> 
+> 类似的漏洞是可能重现的，因此在设计类似功能时需要严格检查用户传入的路径，若是非特权用户最好是直接模拟其token进行操作
+
+### Server Security Descriptors and Compound ACEs
+
+服务安全描述符，内核支持两个控制标志来表示这类描述符：ServerSecurity DaclUntrusted，这种描述符只能在创建安全描述符时指定（创建对象或显式分配安全描述符）
+
+* ServerSecurity  表明调用者准备模拟其他用户的token
+  
+  > 这个控制位解决下述场景的安全问题：
+  > 
+  > 若一个普通的安全描述符在模拟过程中被创建，其owner和group SID会被设置为模拟令牌的SID，这会导致其对应创建的资源owner也被设置为模拟的用户，这可能是非预期的
+  > 
+  > 当设置ServerSecurity标志时，在这种情况下创建的安全描述符owner和group SID会被设置为主令牌的SID，且会把DACL中所有Allowed ACE变为AllowedCompound ACE
+
+* DaclUntrusted  与ServerSecurity一起使用。默认情况下认为DACL中的compound ACE是可信的，并会将其复制到新描述符中；但若设置了该位，则会将compound ACE的SID设置为主令牌的owner SID
+
+### A Summary of Inheritance Behavior
+
+DACL的继承规则，前两列为创建时的设置，后两列分别为设置了Auto-inherit和未设置Auto-inherit的结果
+
+| 父ACL     | 创建者ACL | 设置了Auto-inherit | 未设置Auto-inherit |
+| -------- | ------ | --------------- | --------------- |
+| 无        | 无      | 使用令牌默认ACL       | 使用令牌默认ACL       |
+| 无        | 已设置    | 使用创建者ACL        | 使用创建者ACL        |
+| 无可继承ACE  | 无      | 使用令牌默认ACL       | 使用令牌默认ACL       |
+| 存在可继承ACE | 无      | 使用父ACL          | 使用父ACL          |
+| 无可继承ACE  | 已设置    | 使用创建者ACL        | 使用创建者ACL        |
+| 存在可继承ACE | 已设置    | 使用创建者和父ACL      | 使用创建者ACL        |
+| 无可继承ACE  | 保护     | 使用创建者ACL        | 使用创建者ACL        |
+| 存在可继承ACE | 保护     | 使用创建者ACL        | 使用创建者ACL        |
+| 无可继承ACE  | 默认     | 使用创建者ACL        | 使用创建者ACL        |
+| 存在可继承ACE | 默认     | 使用父ACL          | 使用父ACL          |
+
+对于创建者ACL的几种状态：
+
+* 已设置（Present）：表示安全描述符设置了ACL（即使为NULL或空ACL）
+
+* 保护（Protected）：设置了DaclAutoInherit或SaclAutoInherit
+
+* 默认（Defaulted）：设置了DaclDefaulted或SaclDefaulted
+
+## 7. THE ACCESS CHECK PROCESS
+
+### Running a Access Check
+
+#### Kernel-Mode Access Checks
+
+由SeAccessCheck函数实现，包含下列参数
+
+* Security descriptor  安全描述符，需要包含owner和group SID
+
+* Security subject context  调用者的主令牌和模拟令牌
+
+* Desired access  调用者需要的访问权限
+
+* Access mode  设置为UserMode或KernelMode
+
+* Generic mapping  内核对象使用的权限映射表
+
+返回值包含
+
+* Granted access  用户获取的权限
+
+* Access status code  权限检查的结果（NT状态码）
+
+* Privileges  权限检查时需要的特权
+
+* Success code  布尔值，若为TRUE则说明权限检查成功
+
+若Granted access与Desired access存在差异，则success code会被设置为STATUS_ACCESS_DENIED
 
 # reference
 
@@ -1235,3 +2198,9 @@ Vista的另一个安全机制是用户接口权限隔离（User Interface Privil
 
 - [Windows 访问控制模型（一） | MYZXCG](https://myzxcg.com/2021/08/Windows-%E8%AE%BF%E9%97%AE%E6%8E%A7%E5%88%B6%E6%A8%A1%E5%9E%8B%E4%B8%80/)
 * [TOKEN_GROUPS (winnt.h) - Win32 apps | Microsoft Learn](https://learn.microsoft.com/zh-cn/windows/win32/api/winnt/ns-winnt-token_groups)
+
+* [NtCreateToken - NtDoc (m417z.com)](https://ntdoc.m417z.com/ntcreatetoken)
+
+* [安全标识符 | Microsoft Learn](https://learn.microsoft.com/zh-cn/windows-server/identity/ad-ds/manage/understand-security-identifiers)
+
+* [Security Descriptor String Format - Win32 apps | Microsoft Learn](https://learn.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-string-format)
