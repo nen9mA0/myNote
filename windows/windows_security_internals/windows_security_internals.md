@@ -2203,4 +2203,8 @@ DACL的继承规则，前两列为创建时的设置，后两列分别为设置�
 
 * [安全标识符 | Microsoft Learn](https://learn.microsoft.com/zh-cn/windows-server/identity/ad-ds/manage/understand-security-identifiers)
 
-* [Security Descriptor String Format - Win32 apps | Microsoft Learn](https://learn.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-string-format)
+* [SID 字符串 - Win32 apps | Microsoft Learn](https://learn.microsoft.com/zh-cn/windows/win32/secauthz/sid-strings)
+
+* [ACE 字符串 - Win32 apps | Microsoft Learn](https://learn.microsoft.com/zh-cn/windows/win32/secauthz/ace-strings)
+
+* [安全描述符字符串格式 - Win32 apps | Microsoft Learn](https://learn.microsoft.com/zh-cn/windows/win32/secauthz/security-descriptor-string-format)
