@@ -1,3 +1,37 @@
+# Firmware
+
+主要代码都在该文件夹下
+
+## fibre
+
+一个交互接口库，为网络接口/USB接口/串口等交互接口提供统一的协议，使得远程对象相对本地程序而言透明
+
+## autogen
+
+fibre生成的代码、头文件与配置
+
+## Communication
+
+定义了一系列基于fibre的接口通信协议，以及通信格式，接口包括can、i2c、usb和uart 
+
+### ascii_protocol
+
+定义了通信协议格式
+
+#### 函数
+
+##### ASCII_protocol_parse_stream
+
+顶层接口
+
+```cpp
+void ASCII_protocol_parse_stream(const uint8_t* buffer, size_t len, StreamSink& response_channel);
+```
+
+
+
+
+
 ## nvm_config.hpp
 
 ### Config
@@ -10,7 +44,7 @@ struct Config<T, Ts...>
 {
     // 获取配置长度
     static size_t get_size();
-    
+
     // 加载配置
     // * offset  读取配置的偏移
     // * crc16   返回计算的配置文件crc16
