@@ -482,7 +482,72 @@ enum ActionChoices { GoLeft, GoRight, GoStraight, SitStill };
 
 ##### 用户定义值
 
-使用`type C is V`定义
+使用`type C is V`定义，使用`.wrap`和`.unwrap`进行类型转换
+
+下面是官方的例子，自定义了一个`UFixed256x18`，即具有18位小数的十进制定点类型。这边直接借助uint256的基础运算实现其自身的运算
+
+```solidity
+pragma solidity ^0.8.8;
+
+
+type UFixed256x18 is uint256;
+
+library FixedMath {
+    uint constant multiplier = 10**18;
+
+    function add(UFixed256x18 a, UFixed256x18 b) internal pure returns (UFixed256x18) {
+        return UFixed256x18.wrap( UFixed256x18.unwrap(a) + UFixed256x18.unwrap(b) );
+    }
+
+    function mul(UFixed256x18 a, uint256 b) internal pure returns (UFixed256x18) {
+        return UFixed256x18.wrap( UFixed256x18.unwrap(a) * b );
+    }
+
+    function floor(UFixed256x18 a) internal pure returns (uint256) {
+        return UFixed256x18.unwrap(a) / multiplier;
+    }
+
+    function toUFixed256x18(uint256 a) internal pure returns (UFixed256x18) {
+        return UFixed256x18.wrap(a*multipiler);
+    }
+}
+```
+
+##### 函数类型
+
+是函数的类型，直观理解有点像C语言的函数指针。函数类型的变量可以使用一个函数赋值，函数类型的参数可以用于将函数传递给函数调用，也可以用于返回一个函数类型的值
+
+分为内部函数和外部函数，内部函数只能在当前合约内部调用，不能在当前合约的上下文之外执行；外部函数由地址和函数签名组成，可以通过外部函数调用
+
+```
+function (<parameter types>) {internal|external} [pure|view|payable] [returns (<return types>)]
+```
+
+###### 隐式转换
+
+函数类型的隐式转换要求
+
+* 参数类型相同
+
+* 返回值类型相同
+
+* 内部/外部属性相同
+
+* 状态可变性只能往更严格的方向转换，即
+  
+  * pure -> view | non-payable
+  
+  * view -> non-payable
+  
+  * payable -> non-payable
+
+对于最后一条规则，是因为一个payable的函数可以接受支付0以太，由此可以视为non-payable。此外，non-payable是拒绝以太的，比接受以太更为严格
+
+未初始化或delete后调用函数类型的变量会导致panic error
+
+在solidity上下文之外使用外部函数类型，将被视为function类型，该类型会将地址和函数标识符一起编码为`bytes24`类型
+
+合约的公共函数可以同时用作内部和外部函数，如对于合约的公共函数f，内部形式即为f，外部形式则为this.f
 
 #### 字面量
 
