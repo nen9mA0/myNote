@@ -480,6 +480,8 @@ int/uint，有/无符号整型，分别代表int256和uint256，此外两类都�
 enum ActionChoices { GoLeft, GoRight, GoStraight, SitStill };
 ```
 
+如上例，可以使用`type(ActionChoices).min` `type(ActionChoices).max`获取枚举的最小值和最大值
+
 ##### 用户定义值
 
 使用`type C is V`定义，使用`.wrap`和`.unwrap`进行类型转换
@@ -523,6 +525,16 @@ library FixedMath {
 function (<parameter types>) {internal|external} [pure|view|payable] [returns (<return types>)]
 ```
 
+状态可变性
+
+* pure 不读取或修改状态变量和区块数据
+
+* view 仅读取状态变量，不修改
+
+* payable 可接收ETH
+
+作为函数的注解可以优化gas消耗
+
 ###### 隐式转换
 
 函数类型的隐式转换要求
@@ -548,6 +560,201 @@ function (<parameter types>) {internal|external} [pure|view|payable] [returns (<
 在solidity上下文之外使用外部函数类型，将被视为function类型，该类型会将地址和函数标识符一起编码为`bytes24`类型
 
 合约的公共函数可以同时用作内部和外部函数，如对于合约的公共函数f，内部形式即为f，外部形式则为this.f
+
+成员包含：
+
+* address  返回函数的合约地址
+
+* selector  返回ABI函数选择器
+
+其他细节和示例代码见 [类型 &mdash; Solidity 中文文档 — 登链社区](https://learnblockchain.cn/docs/solidity/types.html#function-types)
+
+#### 引用类型
+
+包括结构体、数组和映射
+
+##### 数据位置
+
+若使用引用类型，必须指明存储该类型的数据区域，称为数据位置
+
+* memory  生命周期仅限于外部函数调用
+
+* storage  存储状态变量的地点，生命周期限于合约本身的生命周期
+
+* calldata  包含函数参数的特殊数据位置，是一个不可修改，非持久的区域
+
+任何改变数据位置的赋值或类型转换都会引发复制，而同一数据位置内的幅值仅在某些情况下会引发复制
+
+因为calldata可以避免复制，且确保数据无法被更改，因此建议使用。此外具有calldata数据位置的数组和结构体可以从函数返回，但无法直接分配
+
+数据位置影响赋值的语义
+
+* 在storage和memory之间的赋值，或从calldata进行的赋值总是会创建一个副本
+
+* 从memory到memory的幅值仅创建引用
+
+* 从storage到本地存储变量的赋值仅创建引用
+
+* 所有其他对storage的赋值总会复制
+
+文档中有个示例 [类型 &mdash; Solidity 中文文档 — 登链社区](https://learnblockchain.cn/docs/solidity/types.html#data-location-assignment)
+
+##### 数组
+
+###### 特性
+
+可以有编译时的固定大小`T[k]`，也可以有动态大小`T[]`
+
+注意，solidity声明多维数组的顺序与C是相反的，如`uint[][5] memory x`表示包含5个类型为uint的动态数组，但访问顺序与其他语言一致，如`x[2][6]`表示第3个动态数组的第7个元素（下标从0开始）
+
+还有下列特性
+
+* 数组元素可以是任何类型，但一些对类型的限制在数组上适用，如映射只能存储在storage位置、公开可见的函数需要的参数为ABI types
+
+* 可以将状态变量数组标记为public并让solidity创建一个getter
+
+* 可以使用push方法在数组末尾添加元素
+
+* 访问超出数组长度的元素会导致断言失败
+
+* bytes和string是特殊的数组，bytes等同于`bytes1[]`，string则是不允许索引访问的bytes
+
+* 可以使用new分配内存数组，这里必须指定数组长度且无法改变
+  
+  ```solidity
+  uint[] mmeory a = new uint[](7);
+  ```
+
+成员如下：
+
+* length
+
+* push() / push(x)
+
+* pop()
+
+###### 悬垂引用
+
+这边有几个比较重要的例子
+
+```solidity
+// SPDX-License-Identifier: GPL-3.0
+pragma solidity >=0.8.0 <0.9.0;
+
+contract C {
+    uint[][] s;
+
+    function f() public {
+        // 存储对 s 的最后一个数组元素的指针。
+        uint[] storage ptr = s[s.length - 1];
+        // 移除 s 的最后一个数组元素。
+        s.pop();
+        // 写入不再在数组中的数组元素。
+        ptr.push(0x42);
+        // 现在向 ``s`` 添加新元素不会添加空数组，
+        // 而是会导致长度为 1 的数组，其元素为 ``0x42``。
+        s.push();
+        assert(s[s.length - 1][0] == 0x42);
+    }
+}
+```
+
+注意，`s.push()`没有指定内容时只是为s数组添加一个存储槽，并不会将其初始化为0，因此push后一般会重用之前pop出去的槽，而该槽与ptr指向同一个数组
+
+下面是另一个例子
+
+```solidity
+// SPDX-License-Identifier: GPL-3.0
+pragma solidity >=0.8.0 <0.9.0;
+
+contract C {
+    uint[] s;
+    uint[] t;
+    constructor() {
+        // 向存储数组推送一些初始值。
+        s.push(0x07);
+        t.push(0x03);
+    }
+
+    function g() internal returns (uint[] storage) {
+        s.pop();
+        return t;
+    }
+
+    function f() public returns (uint[] memory) {
+        // 以下将首先评估 ``s.push()`` 为对索引 1 处的新元素的引用。
+        // 之后，对 ``g`` 的调用弹出这个新元素，导致最左边的元组元素变为悬空引用。
+        // 赋值仍然发生，并将写入 ``s`` 的数据区域之外。
+        (s.push(), g()[0]) = (0x42, 0x17);
+        // 随后的对 ``s`` 的推送将揭示前一个句写入的值，
+        // 语即在此函数结束时 ``s`` 的最后一个元素将具有值 ``0x42``。
+        s.push();
+        return s;
+    }
+}
+```
+
+运行f的第一条元组赋值语句时，执行顺序如下
+
+* `s.push()`
+
+* `g()`，其中将刚刚s中push的元素又pop出来了
+
+* 此时作为左值的元素引用的数据为s[1]和t[0]，其中s[1]已经越界，但这里不会报错而是将0x42赋值到s的存储外
+
+* `s.push()` 此时push一个空元素，但实际上这个元素已经被赋值为0x42
+
+还有一种可能导致悬垂引用的，与bytes和string的短存储与长存储有关。对于小于等于31字节的bytes或string来说，元素和数组长度一起存储在同一个槽中，其中最低字节存储长度`length*2`；而对于大于31字节的bytes或string来说，主槽p存储长度`length*2+1`，数据则存在`keccak256(p)`中
+
+```solidity
+// SPDX-License-Identifier: GPL-3.0
+pragma solidity >=0.8.0 <0.9.0;
+
+// 这将发出一个警告
+contract C {
+    bytes x = "012345678901234567890123456789";
+
+    function test() external returns(uint) {
+        (x.push(), x.push()) = (0x01, 0x02);
+        return x.length;
+    }
+}
+```
+
+这边x初始长度为30，第一次push后变为31，第二次push后变为32，由短存储变为长存储，但这里第一个push已经返回了原来短存储的引用，导致了混淆
+
+**因此为了安全，建议单个赋值期间最多仅将字节数组扩大一个元素，且不要在同一语句中同时使用索引访问数组**
+
+##### 数组切片
+
+`x[start:end]` 目前仅可用于calldata数组。数组切片没有任何成员，也没有对应的类型名称，因此仅存在于中间表达式中
+
+数组切片对于 ABI 解码通过函数参数传递的二级数据非常有用
+
+##### 结构体
+
+```solidity
+struct Funder {
+    address addr;
+    uint amount;
+}
+```
+
+访问一样通过`.`
+
+结构体不能包含其自身类型的成员
+
+##### 映射类型
+
+`mapping(KeyType KeyName? => ValueType ValueName?)`
+
+这里KeyName和ValueName可选。映射可以视为哈希表，默认初始化为所有键都可能存在，并映射到一个字节表示全为0的值。键的keccak256作为索引来查找值
+
+由于上述初始化配置，映射没有长度或某个值是否被设置的概念
+
+映射只能被放在storage里，因此允许作为状态变量、函数中的存储引用类型、库函数参数，不能作为公开可见的合约函数参数或返回参数
+
+若将映射类型变量标记为public，solidity会自动创建getter函数，参数为KeyType，名称为KeyName，返回值为ValueType。若ValueType是数组或映射，则getter需要递归传入每个KeyType参数
 
 #### 字面量
 
@@ -578,6 +785,17 @@ function (<parameter types>) {internal|external} [pure|view|payable] [returns (<
 ##### 十六进制字面量
 
 以hex为前缀，`hex"AA55"`
+
+##### 数组字面量
+
+会生成一个静态大小的内存数组，长度为表达式的数量，基本类型是第一个表达式的类型
+
+```solidity
+[1, 2, 3]        // 默认生成uint8[3]
+[uint(1), 2, 3]  // 生成uint[3]
+```
+
+目前不能使用数组字面量直接给动态数组赋值，因为固定长度数组与动态数据类型不一致。动态数组数据必须逐个赋值
 
 ### 运算
 
