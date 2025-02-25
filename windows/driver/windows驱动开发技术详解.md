@@ -1222,8 +1222,8 @@ NTSTATUS HelloDDKWrite(IN PDEVICE_OBJECT pDevObj, IN PIRP pIrp)
 // 由ReadFile触发，IRP_MJ_READ
 NTSTATUS HelloDDKRead(IN PDEVICE_OBJECT pDevObj, IN PIRP pIrp)
 {
-    PDEVICE_EXTENSION pDevExt = (PDEVICE_EXTENSION)pDevObj->DeviceExtension;
     NTSTATUS status = STATUS_SUCCESS;
+    PDEVICE_EXTENSION pDevExt = (PDEVICE_EXTENSION)pDevObj->DeviceExtension;
     PIO_STACK_LOCATION stack = IoGetCurrentIrpStackLocation(pIrp);
     ULONG ulReadLength = stack->Parameters.Read.Length;
     ULONG ulReadOffset = (ULONG)stack->Parameters.Read.ByteOffset.QuadPart;
@@ -1414,6 +1414,171 @@ NTSTATUS HelloDDKDeviceIOControl(IN PDEVICE_OBJECT pDevObj, IN PIRP pIrp)
     }
 }
 ```
+
+# 第8章 驱动程序的同步处理
+
+## 中断请求级（IRQL）
+
+早期用的中断控制器是类似8259A这种可编程中断控制器（PIC），后来都使用高级可编程中断控制器（APIC），IRQ数量增加到24个
+
+Windows提出了一个中断请求级（IRQL）概念，规定了32个中断请求级别
+
+* 0~2  软件中断
+
+* 3~31  硬件中断  设备中断请求级（DIRQL）
+
+![](pic/8_1.png)
+
+用户模式代码一般运行在最低优先级PASSIVE_LEVEL，包括驱动程序的DriverEntry、派遣函数、AddDevice等；StartIO例程、DPC例程、中断服务例程则运行在DISPATCH_LEVEL或更高的IRQL
+
+Windows负责线程调度的组件则运行在DISPATCH_LEVEL，在线程调度后又会切换回PASSIVE_LEVEL
+
+还有一点需要注意：**页故障（缺页异常）允许出现在PASSIVE_LEVEL的程序中，但如果在DISPATCH_LEVEL或更高级别的IRQL的程序都会导致系统崩溃**。因此在StartIO等例程中不能使用分页内存
+
+驱动可以自行提升或降低IRQL
+
+```c
+KeGetCurrentIrql()                    // 获取当前IRQL
+KeRaiseIrql(new_irql, &old_irql)      // 提升IRQL
+KeLowerIrql(old_irql)                 // 降低IRQL
+```
+
+## 自旋锁
+
+访问自旋锁时，若锁已被获取，则会轮询等待解锁而不会切换线程，因此对自旋锁的占用不应过长
+
+驱动程序必须在小于等于DISPATCH_LEVEL的IRQL使用自旋锁
+
+自旋锁一般应定义在设备扩展中
+
+```c
+typedef struct _DEVICE_EXTENSION {
+    ...
+    KSPIN_LOCK My_SpinLock;
+} DEVICE_EXTENSION, *PDEVICE_EXTENSION;
+```
+
+使用下列函数操作
+
+* KeInitializeSpinLock
+
+* KeAcquireSpinLock
+
+* KeReleaseSpinLock  该函数和上一个函数都有两个参数，一个指向自旋锁，另一个是获取锁前的IRQL/释放锁后恢复的IIRQL
+
+* KeAcquireSpinLockAtDpcLevel
+
+* KeReleaseSpinLockFromDpcLevel  这两个函数不改变IRQL
+
+## 用户模式下的同步对象
+
+这里先介绍用户模式下如何进行同步，从而与内核模式下进行对比
+
+### 用户模式的等待
+
+等待同步对象
+
+```c
+DWORD WaitForSingleObject(
+    HANDLE hHandle,
+    DWORD dwMilliseconds
+);
+
+DWORD WaitForMultipleObjects(
+    DWORD nCount,
+    CONST HANDLE *lpHandles,
+    BOOL bWaitAll,
+    DWORD dwMilliseconds
+);
+```
+
+### 用户模式开启多线程
+
+```c
+HANDLE CreateThread(
+    LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    SIZE_T dwStackSize,
+    LPTHREAD_START_ROUTINE lpStartAddress,
+    LPVOID lpParameter,
+    DWORD dwCreationFlags,
+    LPDWORD lpThreadId
+);
+```
+
+此外这本书建议创建线程使用`_beginthreadex`而不是CreateThread
+
+### 用户模式的事件
+
+```c
+HANDLE CreateEvent(
+    LPSECURITY_ATTRIBUTES lpEventAttributes,
+    BOOL bManualReset,
+    BOOL bInitialState,
+    LPCTSTR lpName
+);
+```
+
+书里总结了一个比较有趣的事实：**所有第一个参数是LPSECURITY_ATTRIBUTES的CreateXXX函数都会创建一个内核对象**
+
+### 用户模式的信号量
+
+只要信号量计数大于0则为触发状态
+
+```c
+HANDLE CreateSemaphore(
+    LPSECURITY_ATTRIBUTES lpSemaphoreAttributes,
+    LONG lInitialCount,
+    LONG lMaximumCount,
+    LPCTSTR lpName
+);
+```
+
+使用ReleaseSemaphore增加计数，WaitForSingleObject则会减少计数
+
+### 用户模式的互斥体
+
+```c
+HANDLE CreateMutex(
+    LPSECURITY_ATTRIBUTES lpMutexAttributes,
+    BOOL bInitialOwner,
+    LPCTSTR lpName
+);
+```
+
+使用WaitForSingleObject获取锁，ReleaseMutex释放锁
+
+### 等待线程完成
+
+使用WaitXXX（WaitForSingleObject、WaitForMultipleObjects）等待子线程运行结束
+
+## 内核模式下的同步对象
+
+### 内核模式下的等待
+
+```c
+NTSTATUS KeWaitForSingleObject(
+    IN PVOID Object,
+    IN KWAIT_REASON WaitReason,
+    IN KPROCESSOR_MODE WaitMode,
+    IN BOOLEAN Alertable,
+    IN PLARGE_INTEGER Timeout OPTIONAL
+);
+
+NTSTATUS KeWaitForMultipleObjects(
+    IN ULONG Count,
+    IN PVOID Object[],
+    IN WAIT_TYPE WaitType,
+    IN KWAIT_REASON WaitReason,
+    IN KPROCESSOR_MODE WaitMode,
+    IN BOOLEAN Alertable,
+    IN PLARGE_INTEGER Timeout OPTIONAL,
+    IN PKWAIT_BLOCK WaitBlockArray OPTIONAL
+);
+```
+
+### 内核模式开启多线程
+
+
 
 # 附录
 
