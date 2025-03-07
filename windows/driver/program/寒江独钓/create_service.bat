@@ -1,0 +1,1 @@
+sc create drivertst binPath="D:\\myNote\\windows\\driver\\program\\º®½­¶Àµö\\helloworld\\x64\\Debug\\helloworld.sys" type=kernel DisplayName="Driver Test" error=normal

@@ -1578,7 +1578,168 @@ NTSTATUS KeWaitForMultipleObjects(
 
 ### 内核模式开启多线程
 
+使用`PsCreateSystemThread`创建线程，并且在线程中必须用`PsTerminateSystemThread`强制线程结束，否则线程无法自动退出
 
+`PsCreateSystemThread`的第四个参数可以指定创建的是系统进程还是用户进程
+
+### 内核模式下的事件对象
+
+内核使用`KEVENT`表示一个事件对象，并且使用前需要用`KeInitializeEvent`对事件对象初始化。KEVENT有两类事件：通知事件和同步事件。若为通知事件，当事件对象变为激发态时需要手动将其改回未激发态；若为同步事件，则当事件对象为激发态时，若遇到KeWaitForXXX类型的函数会自动变回未激发态
+
+可以使用`KeSetEvent`手动设置事件对象状态
+
+### 驱动程序与应用程序交互事件对象
+
+由于事件对象并不互通，驱动程序与应用程序一般通过DeviceIoControl进行交互
+
+用户程序端
+
+```c
+int main()
+{
+    HANDLE hDevice = CreateFile("\\\\.\\HelloDDK", GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if(hDevice == INVALID_HANDLE_VALUE)
+    {
+        printf("Failed to open file handle\n");
+        return 1;
+    }
+    BOOL hRet;
+    DWORD dwOutput;
+    HANDLE hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+    HANDLE hThread1 = (HANDLE) _beginthreadex(NULL, 0, Thread1, &hEvent, 0, NULL);
+    bRet = DeviceIoControl(hDevice, IOCTL_TRANSMIT_EVENT, &hEvent, sizeof(hEvent), NULL, 0, &dwOutput, NULL);
+    WaitForSingleObject(hThread1, INFINITE);
+    CloseHandle(hDevice);
+    CloseHandle(hThread1);
+    CloseHandle(hEvent);
+}
+```
+
+驱动程序端：
+
+```c
+NTSTATUS HelloDDKDeviceIOControl(IN PDEVICE_OBJECT pDevObj, IN PIRP pIrp)
+{
+    NTSTATUS status = STATUS_SUCCESS;
+    PIO_STACK_LOCATION stack = IoGetCurrentIrpStackLocation(pIrp);
+    ULONG cbin = stack->Parameters.DeviceIoControl.InputBufferLength;
+    ULONG cbout = stack->Parameters.DeviceIoControl.OutputBufferLength;
+    ULONG code = stack->Parameters.DeviceIoControl.IoControlCode;
+    ULONG info = 0;
+    switch(code)
+    {
+        case IOCTL_TRANSMIT_EVENT:
+        {
+            HANDLE hUserEvent = *(HANDLE*)pIrp->AssociatedIrp.SystemBuffer;
+            PKEVENT pEvent;
+            status = ObReferenceObjectByHandle(hUserEvent, EVENT_MODIFY_STATE, *ExEventObjectType, KernelMode, (PVOID*)&pEvent, NULL);
+            KeSetEvent(pEvent, IO_NO_INCREMENT, FALSE);
+            ObDereferenceObject(pEvent);
+            break;
+        }
+        default:
+            status = STATUS_INVALID_VARIANT;
+    }
+    pIrp->IoStatus.Status = status;
+    pIrp->IoStatus.Information = info;
+    IoCompleteRequest(pIrp, IO_NO_INCREMENT);
+    return status;
+}
+```
+
+这里驱动程序通过ObReferenceObjectByHandle获取用户程序中事件对应的内核对象，随后设置事件，最后通过ObDereferenceObject解引用
+
+### 驱动程序与驱动程序交互事件对象
+
+最简单的方法就是创建命名事件
+
+* IoCreateNotificationEvent
+
+* IoCreateSynchronizationEvent
+
+### 内核模式下的信号量
+
+数据结构为`KSEMAPHORE`
+
+* KeInitializeSemaphore  使用前需要用初始化
+
+* KeReadStateSemaphore  读取信号量计数
+
+* KeReleaseSemaphore  增加信号量计数
+
+* KeWaitXXX  减少信号量计数
+
+### 内核模式下的互斥体
+
+数据结构为`KMUTEX`
+
+* KeInitializeMutex  使用前初始化
+
+* KeReleaseMutex  释放锁
+
+* KeWaitXXX  获取锁
+
+### 快速互斥体
+
+比普通互斥体快，但不允许递归获取互斥体（即已经获取互斥体的线程再次获取互斥体）
+
+数据结构为`FAST_MUTEX`
+
+* ExInitializeFastMutex  初始化快速互斥体
+
+* ExAcquireFastMutex  获取快速互斥体
+
+* ExReleaseFastMutex  释放快速互斥体
+
+## 其他同步方法
+
+### 自旋锁
+
+数据结构为SpinLock。自旋锁速度快，但会耗费CPU时间，不应在自旋锁上等待过长时间；另外自旋锁会修改IRQL（单核系统获取自旋锁通过提升IRQL实现），因此传入的参数包含当前IRQL
+
+* KeAcquireSpinLock
+
+* KeReleaseSpinLock
+
+### 原子操作
+
+对于一些简单的运算，提供了一系列函数用于原子操作，如`InterLockedIncrement`
+
+主要函数包含`ExInterlockedXXX`和`InterlockedXXX`
+
+# 第9章 IRP的同步
+
+## 应用程序对设备的同步异步操作
+
+### 同步操作与异步操作
+
+应用程序主要通过ReadFile WriteFile和DeviceIoControl函数与驱动进行交互，这里以DeviceIoControl为例说明同步操作与异步操作的原理
+
+* 同步操作：DeviceIoControl调用后，内部会调用WaitForSingleObject等待一个事件，底层IRP处理完后通过IoCompleteRequest设置这个事件函数才会返回
+  
+  ![](pic/9_1.png)
+
+* 异步操作：DeviceIoControl调用后立即返回，IRP操作结束时会触发一个IRP相关事件通知应用程序IRP请求执行完毕
+  
+  ![](pic/9_2.png)
+
+### 同步操作设备
+
+同步与异步操作主要由几个系统API的OVERLAP参数指定。若要进行同步操作
+
+* CreateFile时dwFlagsAndAttributes不能设置FILE_FLAG_OVERLAPPED
+
+* ReadFile WriteFile DeviceIoControl等函数的lpOverlapped参数设为NULL
+
+### 异步操作设备
+
+* CreateFile时dwFlagsAndAttributes必须设置FILE_FLAG_OVERLAPPED
+
+* 初始化对应OVERLAPPED结构的参数（如hEvent等），当调用ReadFile、WriteFile等函数时传入
+
+* 或使用ReadFileEx、WriteFileEx，在这两个函数中可以直接设置回调，当完成时系统会通过异步过程调用机制（APC）调用回调。注意这里回调函数的调用是有条件的：需要通过SleepEx、WaitForXXX等函数使线程进入“警惕状态”
+
+## IRP的同步完成与异步完成
 
 # 附录
 
@@ -1629,5 +1790,3 @@ NTSTATUS KeWaitForMultipleObjects(
 * GUIDGEN  P84
   
   用于生成GUID
-
-

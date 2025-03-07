@@ -2,4 +2,17 @@
 *.exe
 *.obj
 
+**/.vs/**
+**/*.tlog/**
+**/Debug/**
+**/Release/**
+**/x64/**
+*.tlog
+*.log
+*.pdb
+*.inf
+*.sln
+*.vcxproj
+*.vcxproj.filters
+
 !/beginner/C&Asm/**/*.exe
