@@ -209,3 +209,81 @@ NTM仍然具有端到端的可分性，并可以由BPTT进行训练
 NTM的实验是模拟一些基础的图灵机算法，如复制、排序等，作者使用了几种网络进行训练：LSTM RNN、使用前馈控制器的NTM、使用LSTM控制器的NTM。结果表明两种NTM结构都显著优于LSTM RNN
 
 #### Applications of LSTMs and BRNNs
+
+![](pic/1_11.png)
+
+* (a)  普通的前馈神经网络，其中蓝色是输入，绿色是隐含层，红色是输出
+
+* (b)  文本识别和视频分类任务可以被视为输入一个序列，输出一个固定长度向量的任务
+
+* (c)  图像描述相反，可以视为输入一个固定长度向量（图片），输出一个序列的任务
+
+* (d)  这种架构被用于自然语言翻译任务，输入一个序列最后输出一个序列，这里序列间长度可能不同
+
+* (e)  这种架构被用于学习一个文本生成模型，可以预测下一个字符的内容
+
+##### Representations of natural language inputs and outputs
+
+早期使用独热码编码自然语言，但只要词表一大就会导致编码空间很大，且这种表达方式没法捕捉到词与词间的相似性。因此后来发展出了用meaning vector（即在向量中包含了单词的意义）来表示语言的方法，在一些情况下，单词的意义会从大量监督数据集中提取，但更常见的是通过基于单词共同出现概率的embedding算法来初始化向量。用来生成词向量的经典工作有GloVe和word2vec
+
+对文本数据的分布式表示最早在1986被引入，在2003年扩展应用到NLP，2010年前后被一些描述循环自动编码器网络（Recursive auto-encoder, RAE）的论文应用
+
+还有一些工作会以字母为单位进行编码和输出
+
+##### Evaluation methodology
+
+对于描述类和翻译类任务，可能存在多种正确的结果，因此评估起来比多分类问题困难
+
+###### BLEU分数
+
+一种常用评估方案是BLEU分数，该分数的基本原理就是计算答案的ngram概率（N一般取4）。但对于短句的BLEU分数可能很高，BLEU引入一个惩罚因子B
+
+$$
+B = \left \{
+\begin{aligned}
+& 1 & if \ c > r
+\\
+& e^{(1-r/c)} & if \  c \leq r
+\end{aligned}
+\right .
+\\
+BLEU = B \cdot exp(\frac{1}{N} \sum_{n=1}^N log p_n)
+$$
+
+其中c为输出的翻译结果的平均长度，r是对应正确翻译结果的平均长度，pn是输出的翻译结果在对应正确翻译结果中的ngram概率
+
+尽管BLEU分数被大量使用，但却不能保证分数高的结果实际上效果好于分数低的结果。BLEU分数趋向于让大量翻译结果趋向于正确，但对于单个句子的效果实际无法保证
+
+###### METEOR
+
+可以避免BLEU中的一些问题。METEOR基于输出翻译结果与正确翻译结果的单词间显式的对应关系
+
+$$
+F_a = \frac{P \cdot R}{a \cdot P + (1-a) \cdot R}
+\\
+METEOR = (1-M) \cdot F_a
+$$
+
+P为准确率，R为召回率。M正比于`c/m`，其中c是在输出结果与正确结果中都出现的单词最小连续快，m是匹配的unigram个数
+
+##### Natural language translation
+
+自然语言翻译是另一种基本任务，2014年出现了如下翻译任务的架构，其中多个LSTM层作为encoder，多个LSTM层作为decoder
+
+![](pic/1_12.png)
+
+* 每个时间点输入一个单词到LSTM，一开始不会产生任何输出。这里作者发现将输入反向输入LSTM可以明显提升效果
+
+* 当短句到达结尾，会向LSTM decoder发送一个特殊符号（EOS），用于指示句子输出。此时decoder获取到encoder的最终结果，每个时间点根据softmax概率输出一个单词
+
+* decoder选择概率最大的单词输出，直到EOS
+
+训练时，输入喂给encoder，对应输出喂给decoder，损失函数从decoder的输出反向传播到整个序列模型中
+
+##### Image captioning
+
+该任务为描述输入的图片
+
+一种方法类似上面的翻译任务，但将encoder换成了CNN，decoder照样是LSTM，另一项工作的encoder为CNN与双向注意力机制网络，decoder则是标准RNN，并使用word2vec作为输出单词的embedding
+
+# 
