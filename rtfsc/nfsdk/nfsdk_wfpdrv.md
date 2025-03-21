@@ -26,6 +26,28 @@
 
 * ht_remove_entry  删除元素
 
+## wfp框架相关代码
+
+### callouts.c
+
+#### 结构
+
+##### NF_CALLOUT
+
+用于记录callout函数列表及其layer
+
+```c
+struct NF_CALLOUT
+{
+   FWPS_CALLOUT_CLASSIFY_FN classifyFunction;
+   FWPS_CALLOUT_NOTIFY_FN notifyFunction;
+   FWPS_CALLOUT_FLOW_DELETE_NOTIFY_FN flowDeleteFunction;
+   GUID const* calloutKey;
+   UINT32 flags;
+   UINT32* calloutId;
+}
+```
+
 ## 设备相关
 
 ### driver.c
@@ -321,17 +343,17 @@ typedef struct _UDPCTX
 
 * hash_table_new建立两个查找链表
   
-  * g_phtUdpCtxById
+  * g_phtUdpCtxById  用于通过ID查找对应的UDPCTX结构
   
-  * g_phtUdpCtxByHandle
+  * g_phtUdpCtxByHandle  用于通过句柄查找对应的UDPCTX结构
 
 * ExInitializeNPagedLookasideList建立两个lookaside链表
   
-  * g_udpCtxLAList
+  * g_udpCtxLAList  用于存放UDPCTX结构
   
-  * g_udpPacketsLAList  用于记录NF_UDP_PACKET结构
+  * g_udpPacketsLAList  用于存放NF_UDP_PACKET结构
 
-* 初始化g_lUdpCtx链表
+* 初始化g_lUdpCtx链表  用于记录UDPCTX结构
 
 ##### udpctx_alloc
 
@@ -357,39 +379,39 @@ typedef struct _UDPCTX
 
 * 否则UdpCtx不会被挂到handle和id链表上，引用计数减一
 
+##### udpctx_free
+
+- udpctx_releaseFlows释放所有数据包
+
+- 释放两个查找链表
+  
+  - g_phtUdpCtxById
+  
+  - g_phtUdpCtxByHandle
+
+- 释放两个lookaside链表
+  
+  - g_udpCtxLAList
+  
+  - g_udpPacketsLAList
+
 ##### udpctx_allocPacket
 
 * 从g_udpPacketsLAList中分配一个新的NF_UDP_PACKET结构
 
 * 从内存池中分配dataBuffer成员的缓冲区
 
+##### udpctx_freePacket
+
+- 释放dataBuffer缓冲区
+
+- 释放controlData的缓冲区
+
+- 释放g_udpPacketsLAList对应的项
+
 ##### udpctx_releaseFlows
 
 * 遍历g_lUdpCtx链表，并对每个项调用udpctx_release释放数据包
-
-##### udpctx_free
-
-* udpctx_releaseFlows释放所有数据包
-
-* 释放两个查找链表
-  
-  * g_phtUdpCtxById
-  
-  * g_phtUdpCtxByHandle
-
-* 释放两个lookaside链表
-  
-  * g_udpCtxLAList
-  
-  * g_udpPacketsLAList
-
-##### udpctx_freePacket
-
-* 释放dataBuffer缓冲区
-
-* 释放controlData的缓冲区
-
-* 释放g_udpPacketsLAList对应的项
 
 ##### udpctx_cleanupFlows
 
@@ -439,9 +461,9 @@ typedef struct _UDPCTX
 
 * 若UDPCTX中设置了redirectInfo.classifyHandle
   
-  * 调用FwpsCompleteClassify0
-
-
+  * 若redirectInfo.isPended为True
+    * 调用FwpsCompleteClassify0以异步形式完成一次ALE请求，之后清空isPended属性
+  * FwpsReleaseClassifyHandle0释放ALE Flow
 
 ### rules_init
 
